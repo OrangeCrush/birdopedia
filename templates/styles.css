@@ -63,6 +63,23 @@ a {
   max-width: 38rem;
 }
 
+.species-code {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-top: 0.35rem;
+}
+
+.bird-audio {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.bird-audio__player {
+  width: 100%;
+}
+
 .site-hero {
   display: grid;
   gap: 2rem;
@@ -203,6 +220,19 @@ a {
   color: var(--ink);
 }
 
+
+.species-panel {
+  margin-top: 1.5rem;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(34, 28, 20, 0.12);
+}
+
+.species-panel .section-title {
+  margin-bottom: 1rem;
+}
+
 .carousel {
   position: relative;
   display: grid;
@@ -246,6 +276,7 @@ a {
   color: var(--accent-deep);
   display: grid;
   place-items: center;
+  z-index: 2;
 }
 
 .carousel__btn[data-dir="prev"] {
@@ -279,6 +310,22 @@ a {
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.carousel__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.2rem;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.carousel__meta span {
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  box-shadow: 0 6px 16px rgba(32, 26, 19, 0.08);
 }
 
 .bird-profile,

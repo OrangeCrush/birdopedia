@@ -137,6 +137,7 @@ async function main() {
 
     species[folder] = {
       scientificName: record.sciName,
+      speciesCode: record.speciesCode,
       family: record.familyComName,
       order: record.order,
       region: '',

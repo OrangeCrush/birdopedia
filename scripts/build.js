@@ -5,6 +5,7 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const IMG_DIR = path.join(PUBLIC_DIR, 'img');
+const TEMPLATES_DIR = path.join(ROOT, 'templates');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
 const EBIRD_PATH = path.join(ROOT, 'data', 'ebird.json');
 
@@ -19,9 +20,12 @@ function readJson(filePath, fallback) {
 const config = readJson(CONFIG_PATH, {
   authorName: 'Your Name',
   authorLocation: '',
-  authorBio: ''
+  authorBio: '',
+  siteLede: 'A growing field guide built from days in the field.',
+  ebirdProfileUrl: ''
 });
 const ebird = readJson(EBIRD_PATH, { species: {}, source: { name: 'eBird', url: 'https://ebird.org' } });
+const wikidata = readJson(path.join(ROOT, 'data', 'wikidata.json'), { species: {}, source: { name: 'Wikidata', url: 'https://query.wikidata.org/' } });
 
 function toWebPath(...parts) {
   const joined = parts.join('/');
@@ -175,6 +179,7 @@ function collectImageMetadata(birdName, filename) {
     src: toWebPath('img', birdName, filename),
     width: exif.ImageWidth || 'Unknown',
     height: exif.ImageHeight || 'Unknown',
+    megapixels: Number.isFinite(exif.Megapixels) ? exif.Megapixels.toFixed(1) : 'Unknown',
     fileSize: formatBytes(stat.size),
     captureDateRaw,
     captureDateIso,
@@ -223,7 +228,10 @@ function renderIndex(birds, collectionStats) {
     .join('');
 
   const authorLine = [config.authorName, config.authorLocation].filter(Boolean).join(' • ');
-  const bio = config.authorBio || 'A growing field guide built from days in the field.';
+  const ebirdLink = config.ebirdProfileUrl
+    ? `<a class="meta-link" href="${config.ebirdProfileUrl}">eBird profile</a>`
+    : '';
+  const bio = config.siteLede || config.authorBio || 'A growing field guide built from days in the field.';
 
   const content = `
     <header class="site-hero">
@@ -232,7 +240,7 @@ function renderIndex(birds, collectionStats) {
         <h1>Birdopedia</h1>
         <p class="lede">${bio}</p>
         <div class="hero-meta">
-          <span>${authorLine || 'Author information missing'}</span>
+          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''}</span>
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
       </div>
@@ -277,7 +285,8 @@ function renderIndex(birds, collectionStats) {
 }
 
 function renderBirdPage(bird, ebirdInfo) {
-  const profile = ebirdInfo || {};
+  const wikidataInfo = wikidata.species?.[bird.name] || {};
+  const profile = { ...(ebirdInfo || {}), ...wikidataInfo };
   const profileItems = [
     ['Scientific name', profile.scientificName],
     ['Family', profile.family],
@@ -298,13 +307,19 @@ function renderBirdPage(bird, ebirdInfo) {
           alt="${bird.name} photograph ${index + 1}"
           data-caption-date="${image.captureDateIso || ''}"
           data-caption-camera="${image.camera}"
+          data-caption-lens="${image.lens}"
+          data-aperture="${image.aperture}"
+          data-shutter="${image.exposure}"
+          data-iso="${image.iso}"
         />`;
     })
     .join('');
 
-  const dots = bird.images
-    .map((_, index) => `<button class="carousel__dot${index === 0 ? ' is-active' : ''}" data-index="${index}" aria-label="Go to image ${index + 1}"></button>`)
-    .join('');
+  const dots = bird.images.length > 1
+    ? bird.images
+        .map((_, index) => `<button class="carousel__dot${index === 0 ? ' is-active' : ''}" data-index="${index}" aria-label="Go to image ${index + 1}"></button>`)
+        .join('')
+    : '';
 
   const imageCards = bird.images
     .map((image) => {
@@ -325,6 +340,7 @@ function renderBirdPage(bird, ebirdInfo) {
               <div><dt>ISO</dt><dd>${image.iso}</dd></div>
               <div><dt>Focal length</dt><dd>${image.focalLength}</dd></div>
               <div><dt>Dimensions</dt><dd>${image.width} × ${image.height}</dd></div>
+              <div><dt>Megapixels</dt><dd>${image.megapixels}</dd></div>
               <div><dt>File size</dt><dd>${image.fileSize}</dd></div>
               <div><dt>Location</dt><dd>${gpsSection}</dd></div>
             </dl>
@@ -345,6 +361,19 @@ function renderBirdPage(bird, ebirdInfo) {
     .map(([label, value]) => `<div class="profile-block"><h3>${label}</h3><p>${value}</p></div>`)
     .join('');
 
+  const wikidataFacts = [
+    ['Conservation status', profile.conservationStatus],
+    ['Wingspan (m)', profile.wingspan],
+    ['Mass (kg)', profile.mass]
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `<div class="profile-item"><span>${label}</span><strong>${value}</strong></div>`)
+    .join('');
+
+  const wikidataAudio = profile.audio
+    ? `<audio class="bird-audio__player" controls src="${profile.audio}">Your browser does not support the audio element.</audio>`
+    : '';
+
   const hasProfileItems = Boolean(profileItems);
   const hasNarrative = Boolean(narrativeBlocks);
   const fallbackProfile = !hasProfileItems && !hasNarrative
@@ -353,22 +382,22 @@ function renderBirdPage(bird, ebirdInfo) {
 
   const profileSection = hasProfileItems || hasNarrative
     ? `
-      <section class="bird-profile">
+      <div class="species-panel">
         <div class="section-title">
           <h2>Species Profile</h2>
-          <p>Reference notes sourced from ${ebird.source?.name || 'eBird'}.</p>
+          <p>Reference notes sourced from ${ebird.source?.name || 'eBird'} and ${wikidata.source?.name || 'Wikidata'}.</p>
         </div>
-        <div class="profile-grid">${profileItems}</div>
+        <div class="profile-grid">${profileItems}${wikidataFacts}</div>
         ${narrativeBlocks}
         ${fallbackProfile}
-      </section>`
+      </div>`
     : `
-      <section class="bird-profile">
+      <div class="species-panel">
         <div class="section-title">
           <h2>Species Profile</h2>
           <p class="empty-note">Add species profile data in data/ebird.json to enrich this page.</p>
         </div>
-      </section>`;
+      </div>`;
 
   const content = `
     <header class="bird-hero">
@@ -377,26 +406,38 @@ function renderBirdPage(bird, ebirdInfo) {
         <p class="eyebrow">${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'}</p>
         <h1>${bird.name}</h1>
         <p class="lede">${profile.scientificName || 'Species profile pending.'}</p>
-        <div class="quick-facts">
-          <div><span>Latest capture</span><strong>${bird.latest || 'Unknown'}</strong></div>
-          <div><span>Earliest capture</span><strong>${bird.earliest || 'Unknown'}</strong></div>
-          <div><span>Locations</span><strong>${bird.locationCount} tagged</strong></div>
+        <p class="species-code">eBird code: ${profile.speciesCode || 'Unknown'}</p>
+        ${wikidataAudio ? `<div class="bird-audio">${wikidataAudio}</div>` : ''}
+        ${profileSection}
+        <div class="species-panel">
+          <div class="section-title">
+            <h2>Photo Collection Overview</h2>
+            <p>Photo capture coverage for this species.</p>
+          </div>
+          <div class="quick-facts">
+            <div><span>Latest capture</span><strong>${bird.latest || 'Unknown'}</strong></div>
+            <div><span>Earliest capture</span><strong>${bird.earliest || 'Unknown'}</strong></div>
+            <div><span>Locations</span><strong>${bird.locationCount} tagged</strong></div>
+          </div>
         </div>
       </div>
       <div class="bird-hero__media">
         <div class="carousel" data-count="${bird.images.length}">
-          <button class="carousel__btn" data-dir="prev" aria-label="Previous image">‹</button>
+          ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="prev" aria-label="Previous image">‹</button>' : ''}
           <div class="carousel__viewport">
             ${carouselImages}
           </div>
-          <button class="carousel__btn" data-dir="next" aria-label="Next image">›</button>
-          <div class="carousel__dots">${dots}</div>
-          <p class="carousel__caption" data-caption>${bird.images[0]?.captureDate || ''} • ${bird.images[0]?.camera || ''}</p>
+          ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="next" aria-label="Next image">›</button>' : ''}
+          ${dots ? `<div class="carousel__dots">${dots}</div>` : ''}
+          <p class="carousel__caption" data-caption>${bird.images[0]?.captureDate || ''} • ${bird.images[0]?.camera || ''} • ${bird.images[0]?.lens || ''}</p>
+          <div class="carousel__meta" data-carousel-meta>
+            <span data-meta="iso">ISO: ${bird.images[0]?.iso || 'Unknown'}</span>
+            <span data-meta="shutter">Shutter: ${bird.images[0]?.exposure || 'Unknown'}</span>
+            <span data-meta="aperture">Aperture: ${bird.images[0]?.aperture || 'Unknown'}</span>
+          </div>
         </div>
       </div>
     </header>
-
-    ${profileSection}
 
     <section class="image-details">
       <div class="section-title">
@@ -422,8 +463,25 @@ function renderBirdPage(bird, ebirdInfo) {
 }
 
 function build() {
+  if (!fs.existsSync(PUBLIC_DIR)) {
+    fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+  }
+
+  const stylesSource = path.join(TEMPLATES_DIR, 'styles.css');
+  const scriptSource = path.join(TEMPLATES_DIR, 'bird.js');
+  if (fs.existsSync(stylesSource)) {
+    fs.copyFileSync(stylesSource, path.join(PUBLIC_DIR, 'styles.css'));
+  }
+  if (fs.existsSync(scriptSource)) {
+    fs.copyFileSync(scriptSource, path.join(PUBLIC_DIR, 'bird.js'));
+  }
+
   const birds = listBirds().map((birdName) => {
-    const images = listImages(birdName).map((filename) => collectImageMetadata(birdName, filename));
+    const imageFiles = listImages(birdName);
+    if (imageFiles.length === 0) {
+      console.warn(`Warning: No images found for ${birdName}.`);
+    }
+    const images = imageFiles.map((filename) => collectImageMetadata(birdName, filename));
     const dates = images
       .map((image) => normalizeExifDate(image.captureDateRaw))
       .filter(Boolean)

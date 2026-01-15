@@ -4,26 +4,32 @@ A static, photography-first bird encyclopedia built from your own images.
 
 ## Getting Started
 
-1. Add your eBird API key to `.env`:
+1. Fill in your author settings in `config.json`.
+
+2. Add your eBird API key to `.env`:
 
    ```bash
    EBIRD_API_TOKEN=your_key_here
    ```
 
-2. Build the data + pages:
+3. Build the data + pages:
 
    ```bash
    node scripts/fetch-ebird.js
    node scripts/build.js
    ```
 
-3. Run the local server:
+4. Run the local server:
 
    ```bash
    node server.js
    ```
 
 Open `http://localhost:3000` in your browser.
+
+## Generated Output
+
+`public/` is fully generated. You can delete it at any time and recreate it by running the build scripts. Source assets live in `templates/`.
 
 ## Adding a New Species
 
