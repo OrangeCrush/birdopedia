@@ -15,6 +15,7 @@ A static, photography-first bird encyclopedia built from your own images.
 3. Build the data + pages:
 
    ```bash
+   node scripts/fetch-wikidata.js
    node scripts/fetch-ebird.js
    node scripts/build.js
    ```
@@ -61,6 +62,3 @@ If the folder name does not match an eBird common name, add a mapping in `data/e
 
 If you also want to refresh eBird taxonomy data, run `node scripts/fetch-ebird.js` before rebuilding.
 
-## Local Export Ideas
-
-If you want to enrich the index page with your personal eBird stats, place export files in `data/exports/`. See `ideas/ebird-export-stats.md` for the concept.
