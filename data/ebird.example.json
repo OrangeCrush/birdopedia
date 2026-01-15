@@ -1,0 +1,21 @@
+{
+  "species": {
+    "Pine Grosbeak": {
+      "scientificName": "Pinicola enucleator",
+      "family": "Finches, Euphonias, and Allies",
+      "order": "Passeriformes",
+      "region": "",
+      "status": "",
+      "habitat": "",
+      "diet": "",
+      "behavior": "",
+      "nesting": "",
+      "range": "",
+      "notes": ""
+    }
+  },
+  "source": {
+    "name": "eBird",
+    "url": "https://ebird.org"
+  }
+}
