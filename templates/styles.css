@@ -431,6 +431,10 @@ a {
     gap: 0.5rem;
   }
 
+  .carousel__viewport {
+    aspect-ratio: auto;
+  }
+
   .collection,
   .bird-profile,
   .image-details {
