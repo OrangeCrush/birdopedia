@@ -9,6 +9,7 @@ const EBIRD_PATH = path.join(DATA_DIR, 'ebird.json');
 const WIKIDATA_PATH = path.join(DATA_DIR, 'wikidata.json');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'ebird.overrides.json');
 const ENV_PATH = path.join(ROOT, '.env');
+const HARD_REFRESH = process.argv.includes('--hard');
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -118,15 +119,27 @@ function resolveOverride(folderName, overrideValue, taxonomy) {
 
 async function fetchEbirdSpecies(token) {
   const taxonomyUrl = 'https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=json&cat=species&locale=en';
+  const existing = readJson(EBIRD_PATH, { species: {} });
+  const existingSpecies = existing.species || {};
+  let reusedCount = 0;
+  let fetchedCount = 0;
   if (!token) {
+    if (!HARD_REFRESH && Object.keys(existingSpecies).length) {
+      console.warn('Missing EBIRD_API_TOKEN. Keeping existing data/ebird.json entries.');
+      return { payload: existing, reusedCount: Object.keys(existingSpecies).length, fetchedCount: 0 };
+    }
     console.warn('Missing EBIRD_API_TOKEN. Writing empty data/ebird.json.');
     return {
-      species: {},
-      source: {
-        name: 'eBird API',
-        url: 'https://ebird.org',
-        taxonomy: taxonomyUrl
-      }
+      payload: {
+        species: {},
+        source: {
+          name: 'eBird API',
+          url: 'https://ebird.org',
+          taxonomy: taxonomyUrl
+        }
+      },
+      reusedCount: 0,
+      fetchedCount: 0
     };
   }
 
@@ -142,6 +155,13 @@ async function fetchEbirdSpecies(token) {
   const missing = [];
 
   birdFolders.forEach((folder) => {
+    if (!HARD_REFRESH && existingSpecies[folder]) {
+      species[folder] = existingSpecies[folder];
+      reusedCount += 1;
+      return;
+    }
+    console.log(`eBird: fetching ${folder}...`);
+    fetchedCount += 1;
     const overrideValue = overrides.byFolder?.[folder];
     const record = resolveOverride(folder, overrideValue, taxonomy) || taxonomyByName[normalizeName(folder)];
 
@@ -179,12 +199,16 @@ async function fetchEbirdSpecies(token) {
   }
 
   return {
-    species,
-    source: {
-      name: 'eBird API',
-      url: 'https://ebird.org',
-      taxonomy: taxonomyUrl
-    }
+    payload: {
+      species,
+      source: {
+        name: 'eBird API',
+        url: 'https://ebird.org',
+        taxonomy: taxonomyUrl
+      }
+    },
+    reusedCount,
+    fetchedCount
   };
 }
 
@@ -256,20 +280,39 @@ async function queryByCommonName(name) {
 }
 
 async function fetchWikidata(ebirdPayload) {
+  const existing = readJson(WIKIDATA_PATH, { species: {} });
+  const existingSpecies = existing.species || {};
+  let reusedCount = 0;
+  let fetchedCount = 0;
   const speciesEntries = Object.entries(ebirdPayload.species || {});
   if (!speciesEntries.length) {
+    if (!HARD_REFRESH && Object.keys(existingSpecies).length) {
+      console.warn('No eBird species found. Keeping existing data/wikidata.json entries.');
+      return { payload: existing, reusedCount: Object.keys(existingSpecies).length, fetchedCount: 0 };
+    }
     console.warn('No eBird species found. Writing empty data/wikidata.json.');
     return {
-      species: {},
-      source: {
-        name: 'Wikidata SPARQL',
-        url: 'https://query.wikidata.org/'
-      }
+      payload: {
+        species: {},
+        source: {
+          name: 'Wikidata SPARQL',
+          url: 'https://query.wikidata.org/'
+        }
+      },
+      reusedCount: 0,
+      fetchedCount: 0
     };
   }
 
   const results = {};
   for (const [commonName, info] of speciesEntries) {
+    if (!HARD_REFRESH && existingSpecies[commonName]) {
+      results[commonName] = existingSpecies[commonName];
+      reusedCount += 1;
+      continue;
+    }
+    console.log(`Wikidata: fetching ${commonName}...`);
+    fetchedCount += 1;
     const scientificName = info.scientificName;
     let binding = null;
 
@@ -310,11 +353,15 @@ async function fetchWikidata(ebirdPayload) {
   }
 
   return {
-    species: results,
-    source: {
-      name: 'Wikidata SPARQL',
-      url: 'https://query.wikidata.org/'
-    }
+    payload: {
+      species: results,
+      source: {
+        name: 'Wikidata SPARQL',
+        url: 'https://query.wikidata.org/'
+      }
+    },
+    reusedCount,
+    fetchedCount
   };
 }
 
@@ -322,16 +369,37 @@ async function main() {
   ensureDir(DATA_DIR);
   ensureOverridesFile();
 
+  if (HARD_REFRESH) {
+    console.log('Running in --hard mode: refreshing all species data.');
+  }
+
   const env = readEnvFile(ENV_PATH);
   const token = process.env.EBIRD_API_TOKEN || env.EBIRD_API_TOKEN;
 
-  const ebirdPayload = await fetchEbirdSpecies(token);
-  fs.writeFileSync(EBIRD_PATH, JSON.stringify(ebirdPayload, null, 2));
-  console.log(`Wrote ${Object.keys(ebirdPayload.species || {}).length} species to ${EBIRD_PATH}`);
+  const ebirdResult = await fetchEbirdSpecies(token);
+  const ebirdPayload = ebirdResult.payload;
+  const shouldWriteEbird = HARD_REFRESH || ebirdResult.fetchedCount > 0 || !fs.existsSync(EBIRD_PATH);
+  if (shouldWriteEbird) {
+    fs.writeFileSync(EBIRD_PATH, JSON.stringify(ebirdPayload, null, 2));
+    console.log(
+      `Wrote ${Object.keys(ebirdPayload.species || {}).length} species to ${EBIRD_PATH} (fetched ${ebirdResult.fetchedCount}, reused ${ebirdResult.reusedCount}).`
+    );
+  } else {
+    console.log(`No eBird updates; reused ${ebirdResult.reusedCount} cached species.`);
+  }
 
-  const wikidataPayload = await fetchWikidata(ebirdPayload);
-  fs.writeFileSync(WIKIDATA_PATH, JSON.stringify(wikidataPayload, null, 2));
-  console.log(`Wrote Wikidata facts for ${Object.keys(wikidataPayload.species || {}).length} species.`);
+  const wikidataResult = await fetchWikidata(ebirdPayload);
+  const wikidataPayload = wikidataResult.payload;
+  const shouldWriteWikidata =
+    HARD_REFRESH || wikidataResult.fetchedCount > 0 || !fs.existsSync(WIKIDATA_PATH);
+  if (shouldWriteWikidata) {
+    fs.writeFileSync(WIKIDATA_PATH, JSON.stringify(wikidataPayload, null, 2));
+    console.log(
+      `Wrote Wikidata facts for ${Object.keys(wikidataPayload.species || {}).length} species (fetched ${wikidataResult.fetchedCount}, reused ${wikidataResult.reusedCount}).`
+    );
+  } else {
+    console.log(`No Wikidata updates; reused ${wikidataResult.reusedCount} cached species.`);
+  }
 }
 
 main().catch((error) => {
