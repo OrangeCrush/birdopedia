@@ -5,8 +5,7 @@
   "description": "A static, photography-first bird encyclopedia built from your own images.",
   "scripts": {
     "build": "node scripts/build.js",
-    "fetch:ebird": "node scripts/fetch-ebird.js",
-    "fetch:wikidata": "node scripts/fetch-wikidata.js",
+    "fetch:data": "node scripts/fetch-data.js",
     "start": "node server.js"
   },
   "dependencies": {

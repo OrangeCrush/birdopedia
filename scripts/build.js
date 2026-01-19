@@ -177,6 +177,9 @@ function firstNumber(...values) {
 async function collectImageMetadata(birdName, filename) {
   const imagePath = path.join(IMG_DIR, birdName, filename);
   const exif = await getExif(imagePath);
+  if (!exif || Object.keys(exif).length === 0) {
+    console.warn(`EXIF: no metadata found for ${path.join(birdName, filename)}.`);
+  }
   const stat = fs.statSync(imagePath);
   const camera = [exif.Make, exif.Model].filter(Boolean).join(' ').trim();
   const gps = formatGps(
@@ -195,6 +198,9 @@ async function collectImageMetadata(birdName, filename) {
     captureDateRaw instanceof Date
       ? captureDateRaw.toISOString()
       : exifToIso(typeof captureDateRaw === 'string' ? captureDateRaw : null, offset);
+  if (!captureDateRaw) {
+    console.warn(`EXIF: missing capture date for ${path.join(birdName, filename)}.`);
+  }
   const width = firstNumber(
     exif.ImageWidth,
     exif.ExifImageWidth,

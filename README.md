@@ -18,11 +18,10 @@ A static, photography-first bird encyclopedia built from your own images.
    npm install
    ```
 
-4. Build the data + pages:
+4. Fetch data + build the pages:
 
    ```bash
-   node scripts/fetch-wikidata.js
-   node scripts/fetch-ebird.js
+   node scripts/fetch-data.js
    node scripts/build.js
    ```
 
@@ -66,4 +65,4 @@ If the folder name does not match an eBird common name, add a mapping in `data/e
    node scripts/build.js
    ```
 
-If you also want to refresh eBird taxonomy data, run `node scripts/fetch-ebird.js` before rebuilding.
+If you also want to refresh taxonomy + Wikidata details, run `node scripts/fetch-data.js` before rebuilding.
