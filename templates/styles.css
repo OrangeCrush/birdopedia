@@ -198,9 +198,23 @@ a {
   gap: 2rem;
   padding: 3.5rem clamp(1.5rem, 4vw, 4rem) 2rem;
   align-items: start;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "summary"
+    "media"
+    "details";
+}
+
+.bird-hero__summary {
+  grid-area: summary;
+}
+
+.bird-hero__details {
+  grid-area: details;
 }
 
 .bird-hero__media {
+  grid-area: media;
   background: var(--sand);
   border-radius: var(--radius);
   padding: 1.5rem;
@@ -421,6 +435,9 @@ a {
 
   .bird-hero {
     grid-template-columns: 1.1fr 1fr;
+    grid-template-areas:
+      "summary media"
+      "details media";
   }
 }
 

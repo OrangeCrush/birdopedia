@@ -446,25 +446,13 @@ function renderBirdPage(bird, ebirdInfo) {
 
   const content = `
     <header class="bird-hero">
-      <div class="bird-hero__info">
+      <div class="bird-hero__summary">
         <a class="back-link" href="/index.html">← Back to index</a>
         <p class="eyebrow">${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'}</p>
         <h1>${bird.name}</h1>
         <p class="lede">${profile.scientificName || 'Species profile pending.'}</p>
         <p class="species-code">eBird code: ${profile.speciesCode || 'Unknown'}</p>
         ${wikidataAudio ? `<div class="bird-audio">${wikidataAudio}</div>` : ''}
-        ${profileSection}
-        <div class="species-panel">
-          <div class="section-title">
-            <h2>Photo Collection Overview</h2>
-            <p>Photo capture coverage for this species.</p>
-          </div>
-          <div class="quick-facts">
-            <div><span>Latest capture</span><strong>${bird.latest || 'Unknown'}</strong></div>
-            <div><span>Earliest capture</span><strong>${bird.earliest || 'Unknown'}</strong></div>
-            <div><span>Locations</span><strong>${bird.locationCount} tagged</strong></div>
-          </div>
-        </div>
       </div>
       <div class="bird-hero__media">
         <div class="carousel" data-count="${bird.images.length}">
@@ -479,6 +467,20 @@ function renderBirdPage(bird, ebirdInfo) {
             <span data-meta="iso">ISO: ${bird.images[0]?.iso || 'Unknown'}</span>
             <span data-meta="shutter">Shutter: ${bird.images[0]?.exposure || 'Unknown'}</span>
             <span data-meta="aperture">Aperture: ${bird.images[0]?.aperture || 'Unknown'}</span>
+          </div>
+        </div>
+      </div>
+      <div class="bird-hero__details">
+        ${profileSection}
+        <div class="species-panel">
+          <div class="section-title">
+            <h2>Photo Collection Overview</h2>
+            <p>Photo capture coverage for this species.</p>
+          </div>
+          <div class="quick-facts">
+            <div><span>Latest capture</span><strong>${bird.latest || 'Unknown'}</strong></div>
+            <div><span>Earliest capture</span><strong>${bird.earliest || 'Unknown'}</strong></div>
+            <div><span>Locations</span><strong>${bird.locationCount} tagged</strong></div>
           </div>
         </div>
       </div>
