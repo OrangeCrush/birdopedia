@@ -205,15 +205,21 @@ function extractLabel(binding, key) {
 
 async function queryByScientificName(name) {
   const query = `
-    SELECT ?item ?conservationStatusLabel ?wingspan ?mass ?audio
+    SELECT ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
+           (GROUP_CONCAT(DISTINCT ?nativeRangeLabel; separator=", ") AS ?nativeRange)
     WHERE {
       ?item wdt:P225 "${name}".
       OPTIONAL { ?item wdt:P141 ?conservationStatus. }
       OPTIONAL { ?item wdt:P2050 ?wingspan. }
       OPTIONAL { ?item wdt:P2067 ?mass. }
       OPTIONAL { ?item wdt:P51 ?audio. }
+      OPTIONAL { ?item wdt:P2250 ?lifespan. }
+      OPTIONAL { ?item wdt:P2043 ?length. }
+      OPTIONAL { ?item wdt:P2048 ?height. }
+      OPTIONAL { ?item wdt:P183 ?nativeRange. }
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
     }
+    GROUP BY ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
     LIMIT 1
   `;
   const url = `https://query.wikidata.org/sparql?format=json&query=${encodeQuery(query)}`;
@@ -223,7 +229,8 @@ async function queryByScientificName(name) {
 
 async function queryByCommonName(name) {
   const query = `
-    SELECT ?item ?conservationStatusLabel ?wingspan ?mass ?audio
+    SELECT ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
+           (GROUP_CONCAT(DISTINCT ?nativeRangeLabel; separator=", ") AS ?nativeRange)
     WHERE {
       ?item rdfs:label "${name}"@en.
       ?item wdt:P31/wdt:P279* wd:Q16521.
@@ -231,8 +238,13 @@ async function queryByCommonName(name) {
       OPTIONAL { ?item wdt:P2050 ?wingspan. }
       OPTIONAL { ?item wdt:P2067 ?mass. }
       OPTIONAL { ?item wdt:P51 ?audio. }
+      OPTIONAL { ?item wdt:P2250 ?lifespan. }
+      OPTIONAL { ?item wdt:P2043 ?length. }
+      OPTIONAL { ?item wdt:P2048 ?height. }
+      OPTIONAL { ?item wdt:P183 ?nativeRange. }
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
     }
+    GROUP BY ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
     LIMIT 1
   `;
   const url = `https://query.wikidata.org/sparql?format=json&query=${encodeQuery(query)}`;
@@ -279,7 +291,11 @@ async function fetchWikidata(ebirdPayload) {
       conservationStatus: extractLabel(binding, 'conservationStatusLabel'),
       wingspan: extractValue(binding, 'wingspan'),
       mass: extractValue(binding, 'mass'),
-      audio: extractValue(binding, 'audio')
+      audio: extractValue(binding, 'audio'),
+      lifespan: extractValue(binding, 'lifespan'),
+      bodyLength: extractValue(binding, 'length'),
+      height: extractValue(binding, 'height'),
+      nativeRange: extractLabel(binding, 'nativeRange')
     };
     const missingFields = Object.entries(record)
       .filter(([, value]) => value == null)

@@ -409,7 +409,11 @@ function renderBirdPage(bird, ebirdInfo) {
   const wikidataFacts = [
     ['Conservation status', profile.conservationStatus],
     ['Wingspan (m)', profile.wingspan],
-    ['Mass (kg)', profile.mass]
+    ['Mass (kg)', profile.mass],
+    ['Lifespan (years)', profile.lifespan],
+    ['Body length (m)', profile.bodyLength],
+    ['Height (m)', profile.height],
+    ['Native range', profile.nativeRange]
   ]
     .filter(([, value]) => value)
     .map(([label, value]) => `<div class="profile-item"><span>${label}</span><strong>${value}</strong></div>`)
