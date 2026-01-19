@@ -352,6 +352,33 @@ a {
   box-shadow: var(--shadow);
 }
 
+.site-hero__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 2rem;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 1.25rem;
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.1);
+}
+
+.site-hero__stats .stat {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
+  padding: 0.7rem 0.85rem;
+  box-shadow: 0 6px 16px rgba(32, 26, 19, 0.08);
+}
+
+.site-hero__stats .stat__label {
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+}
+
+.site-hero__stats strong {
+  font-size: 0.95rem;
+}
+
 .profile-grid {
   display: grid;
   gap: 1rem;

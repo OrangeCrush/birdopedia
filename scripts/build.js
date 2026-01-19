@@ -290,7 +290,15 @@ function renderIndex(birds, collectionStats) {
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
       </div>
-      <div class="site-hero__panel">
+      <div class="site-hero__stats">
+        <div class="stat">
+          <span class="stat__label">Total species</span>
+          <strong>${collectionStats.totalSpecies}</strong>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Total photos</span>
+          <strong>${collectionStats.totalPhotos}</strong>
+        </div>
         <div class="stat">
           <span class="stat__label">Earliest capture</span>
           <strong>${collectionStats.earliest || 'Unknown'}</strong>
@@ -300,8 +308,28 @@ function renderIndex(birds, collectionStats) {
           <strong>${collectionStats.latest || 'Unknown'}</strong>
         </div>
         <div class="stat">
-          <span class="stat__label">Camera kit</span>
+          <span class="stat__label">Most photographed species</span>
+          <strong>${collectionStats.topSpecies || 'Unknown'}</strong>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Most photographed location</span>
+          <strong>${collectionStats.topLocation || 'Unknown'}</strong>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Most used camera</span>
           <strong>${collectionStats.topCamera || 'Unknown'}</strong>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Most used lens</span>
+          <strong>${collectionStats.topLens || 'Unknown'}</strong>
+        </div>
+        <div class="stat">
+          <span class="stat__label">New species (30 days)</span>
+          <strong>${collectionStats.newSpeciesCount}</strong>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Days in the field</span>
+          <strong>${collectionStats.daysInField}</strong>
         </div>
       </div>
     </header>
@@ -577,6 +605,7 @@ async function build() {
     .flatMap((bird) => bird.images.map((image) => normalizeExifDate(image.captureDateRaw)))
     .filter(Boolean)
     .sort((a, b) => a - b);
+  const uniqueDays = new Set(allDates.map((date) => date.toISOString().slice(0, 10)));
 
   const cameraCounts = populatedBirds
     .flatMap((bird) => bird.images.map((image) => image.camera))
@@ -587,13 +616,48 @@ async function build() {
     }, {});
 
   const topCamera = Object.entries(cameraCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const lensCounts = populatedBirds
+    .flatMap((bird) => bird.images.map((image) => image.lens))
+    .filter((lens) => lens && lens !== 'Unknown')
+    .reduce((acc, lens) => {
+      acc[lens] = (acc[lens] || 0) + 1;
+      return acc;
+    }, {});
+  const topLens = Object.entries(lensCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+  const locationCounts = populatedBirds
+    .flatMap((bird) => bird.images.map((image) => image.gps?.display))
+    .filter(Boolean)
+    .reduce((acc, location) => {
+      acc[location] = (acc[location] || 0) + 1;
+      return acc;
+    }, {});
+  const topLocation = Object.entries(locationCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+  const topSpecies = populatedBirds.slice().sort((a, b) => b.count - a.count)[0];
+  const topSpeciesLabel = topSpecies ? `${topSpecies.name} (${topSpecies.count})` : null;
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const newSpeciesCount = populatedBirds.filter((bird) => {
+    if (!bird.latest) {
+      return false;
+    }
+    const latestDate = new Date(bird.latest);
+    return !Number.isNaN(latestDate.getTime()) && latestDate >= cutoff;
+  }).length;
 
   const collectionStats = {
     totalSpecies: populatedBirds.length,
     totalPhotos: populatedBirds.reduce((sum, bird) => sum + bird.count, 0),
     earliest: allDates[0] ? allDates[0].toISOString().slice(0, 10) : null,
     latest: allDates[allDates.length - 1] ? allDates[allDates.length - 1].toISOString().slice(0, 10) : null,
-    topCamera
+    topCamera,
+    topLens,
+    topLocation,
+    topSpecies: topSpeciesLabel,
+    newSpeciesCount,
+    daysInField: uniqueDays.size
   };
 
   const birdSummaries = populatedBirds.map((bird) => ({
