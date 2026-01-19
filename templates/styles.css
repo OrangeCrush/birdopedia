@@ -244,6 +244,7 @@ a {
   overflow: hidden;
   border-radius: 18px;
   background: #101010;
+  aspect-ratio: 3 / 2;
   min-height: 280px;
 }
 
