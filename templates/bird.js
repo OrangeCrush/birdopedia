@@ -52,6 +52,7 @@
       update('iso', img.dataset.iso || '', '', 'ISO: ');
       update('shutter', img.dataset.shutter || '', '', 'Shutter: ');
       update('aperture', img.dataset.aperture || '', '', 'Aperture: ');
+      update('focal', img.dataset.focal || '', '', 'Focal: ');
     };
 
     const update = (nextIndex) => {

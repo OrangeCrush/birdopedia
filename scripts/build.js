@@ -357,6 +357,7 @@ function renderBirdPage(bird, ebirdInfo) {
           data-aperture="${image.aperture}"
           data-shutter="${image.exposure}"
           data-iso="${image.iso}"
+          data-focal="${image.focalLength}"
         />`;
     })
     .join('');
@@ -472,6 +473,7 @@ function renderBirdPage(bird, ebirdInfo) {
             <span data-meta="iso">ISO: ${bird.images[0]?.iso || 'Unknown'}</span>
             <span data-meta="shutter">Shutter: ${bird.images[0]?.exposure || 'Unknown'}</span>
             <span data-meta="aperture">Aperture: ${bird.images[0]?.aperture || 'Unknown'}</span>
+            <span data-meta="focal">Focal: ${bird.images[0]?.focalLength || 'Unknown'}</span>
           </div>
         </div>
       </div>
