@@ -532,6 +532,7 @@ async function build() {
     const imageFiles = listImages(birdName);
     if (imageFiles.length === 0) {
       console.warn(`Warning: No images found for ${birdName}.`);
+      return null;
     }
     const images = await Promise.all(imageFiles.map((filename) => collectImageMetadata(birdName, filename)));
     images.sort((a, b) => {
@@ -568,12 +569,14 @@ async function build() {
     };
   }));
 
-  const allDates = birds
+  const populatedBirds = birds.filter(Boolean);
+
+  const allDates = populatedBirds
     .flatMap((bird) => bird.images.map((image) => normalizeExifDate(image.captureDateRaw)))
     .filter(Boolean)
     .sort((a, b) => a - b);
 
-  const cameraCounts = birds
+  const cameraCounts = populatedBirds
     .flatMap((bird) => bird.images.map((image) => image.camera))
     .filter((camera) => camera && camera !== 'Unknown')
     .reduce((acc, camera) => {
@@ -584,14 +587,14 @@ async function build() {
   const topCamera = Object.entries(cameraCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
   const collectionStats = {
-    totalSpecies: birds.length,
-    totalPhotos: birds.reduce((sum, bird) => sum + bird.count, 0),
+    totalSpecies: populatedBirds.length,
+    totalPhotos: populatedBirds.reduce((sum, bird) => sum + bird.count, 0),
     earliest: allDates[0] ? allDates[0].toISOString().slice(0, 10) : null,
     latest: allDates[allDates.length - 1] ? allDates[allDates.length - 1].toISOString().slice(0, 10) : null,
     topCamera
   };
 
-  const birdSummaries = birds.map((bird) => ({
+  const birdSummaries = populatedBirds.map((bird) => ({
     name: bird.name,
     count: bird.count,
     latest: bird.latest
@@ -599,13 +602,13 @@ async function build() {
 
   fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), renderIndex(birdSummaries, collectionStats));
 
-  birds.forEach((bird) => {
+  populatedBirds.forEach((bird) => {
     const ebirdInfo = ebird.species?.[bird.name];
     const birdHtml = renderBirdPage(bird, ebirdInfo);
     fs.writeFileSync(path.join(IMG_DIR, bird.name, 'index.html'), birdHtml);
   });
 
-  console.log(`Built ${birds.length} bird page(s).`);
+  console.log(`Built ${populatedBirds.length} bird page(s).`);
 }
 
 build().catch((error) => {
