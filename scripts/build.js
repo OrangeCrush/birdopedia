@@ -28,8 +28,9 @@ const ebird = readJson(EBIRD_PATH, { species: {}, source: { name: 'eBird', url: 
 const wikidata = readJson(path.join(ROOT, 'data', 'wikidata.json'), { species: {}, source: { name: 'Wikidata', url: 'https://query.wikidata.org/' } });
 
 function toWebPath(...parts) {
-  const joined = parts.join('/');
-  return encodeURI(joined.replace(/\\/g, '/'));
+  return parts
+    .map((part) => encodeURIComponent(String(part)).replace(/'/g, '%27'))
+    .join('/');
 }
 
 function listBirds() {
