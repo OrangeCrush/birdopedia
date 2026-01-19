@@ -149,6 +149,9 @@ async function fetchEbirdSpecies(token) {
       missing.push(folder);
       return;
     }
+    if (record.comName && record.comName !== folder) {
+      console.warn(`Folder name "${folder}" does not match eBird common name "${record.comName}".`);
+    }
 
     species[folder] = {
       scientificName: record.sciName,
