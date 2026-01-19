@@ -370,7 +370,7 @@ function renderBirdPage(bird, ebirdInfo) {
   const imageCards = bird.images
     .map((image) => {
       const gpsSection = image.gps
-        ? `<a class="meta-link" href="${image.gps.link}">${image.gps.display}</a>`
+        ? `<a class="meta-link" href="${image.gps.link}" target="_blank" rel="noopener noreferrer">${image.gps.display}</a>`
         : 'Unknown';
 
       return `
