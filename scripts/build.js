@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const exifr = require('exifr');
 
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -68,7 +68,16 @@ function formatBytes(bytes) {
 }
 
 function normalizeExifDate(value) {
-  if (!value || typeof value !== 'string') {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+    return value;
+  }
+  if (typeof value !== 'string') {
     return null;
   }
   let iso = value;
@@ -147,39 +156,69 @@ function formatGps(lat, lon) {
   };
 }
 
-function getExif(imagePath) {
+async function getExif(imagePath) {
   try {
-    const output = execFileSync('exiftool', ['-json', '-n', imagePath], { encoding: 'utf8' });
-    const parsed = JSON.parse(output);
-    return parsed[0] || {};
+    const parsed = await exifr.parse(imagePath, { tiff: true, exif: true, gps: true, xmp: true });
+    return parsed || {};
   } catch (error) {
     return {};
   }
 }
 
-function collectImageMetadata(birdName, filename) {
+function firstNumber(...values) {
+  for (const value of values) {
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+async function collectImageMetadata(birdName, filename) {
   const imagePath = path.join(IMG_DIR, birdName, filename);
-  const exif = getExif(imagePath);
+  const exif = await getExif(imagePath);
   const stat = fs.statSync(imagePath);
   const camera = [exif.Make, exif.Model].filter(Boolean).join(' ').trim();
-  const gps = formatGps(exif.GPSLatitude, exif.GPSLongitude);
+  const gps = formatGps(
+    firstNumber(exif.GPSLatitude, exif.latitude),
+    firstNumber(exif.GPSLongitude, exif.longitude)
+  );
   const captureDateRaw =
     exif.SubSecDateTimeOriginal ||
     exif.DateTimeOriginal ||
     exif.SubSecCreateDate ||
     exif.CreateDate ||
-    exif.FileModifyDate;
-  const captureDateIso = exifToIso(
-    captureDateRaw,
-    exif.OffsetTimeOriginal || exif.OffsetTime || exif.OffsetTimeDigitized
+    exif.FileModifyDate ||
+    exif.ModifyDate;
+  const offset = exif.OffsetTimeOriginal || exif.OffsetTime || exif.OffsetTimeDigitized;
+  const captureDateIso =
+    captureDateRaw instanceof Date
+      ? captureDateRaw.toISOString()
+      : exifToIso(typeof captureDateRaw === 'string' ? captureDateRaw : null, offset);
+  const width = firstNumber(
+    exif.ImageWidth,
+    exif.ExifImageWidth,
+    exif.PixelXDimension,
+    exif.Width
   );
+  const height = firstNumber(
+    exif.ImageHeight,
+    exif.ExifImageHeight,
+    exif.PixelYDimension,
+    exif.Height
+  );
+  const megapixelsRaw = Number.isFinite(exif.Megapixels)
+    ? exif.Megapixels
+    : width && height
+      ? (width * height) / 1000000
+      : null;
 
   return {
     filename,
     src: toWebPath('img', birdName, filename),
-    width: exif.ImageWidth || 'Unknown',
-    height: exif.ImageHeight || 'Unknown',
-    megapixels: Number.isFinite(exif.Megapixels) ? exif.Megapixels.toFixed(1) : 'Unknown',
+    width: width || 'Unknown',
+    height: height || 'Unknown',
+    megapixels: Number.isFinite(megapixelsRaw) ? megapixelsRaw.toFixed(1) : 'Unknown',
     fileSize: formatBytes(stat.size),
     captureDateRaw,
     captureDateIso,
@@ -462,7 +501,7 @@ function renderBirdPage(bird, ebirdInfo) {
   });
 }
 
-function build() {
+async function build() {
   if (!fs.existsSync(PUBLIC_DIR)) {
     fs.mkdirSync(PUBLIC_DIR, { recursive: true });
   }
@@ -476,12 +515,26 @@ function build() {
     fs.copyFileSync(scriptSource, path.join(PUBLIC_DIR, 'bird.js'));
   }
 
-  const birds = listBirds().map((birdName) => {
+  const birds = await Promise.all(listBirds().map(async (birdName) => {
     const imageFiles = listImages(birdName);
     if (imageFiles.length === 0) {
       console.warn(`Warning: No images found for ${birdName}.`);
     }
-    const images = imageFiles.map((filename) => collectImageMetadata(birdName, filename));
+    const images = await Promise.all(imageFiles.map((filename) => collectImageMetadata(birdName, filename)));
+    images.sort((a, b) => {
+      const dateA = normalizeExifDate(a.captureDateRaw);
+      const dateB = normalizeExifDate(b.captureDateRaw);
+      if (dateA && dateB) {
+        return dateB - dateA;
+      }
+      if (dateA) {
+        return -1;
+      }
+      if (dateB) {
+        return 1;
+      }
+      return a.filename.localeCompare(b.filename);
+    });
     const dates = images
       .map((image) => normalizeExifDate(image.captureDateRaw))
       .filter(Boolean)
@@ -500,7 +553,7 @@ function build() {
       latest,
       locationCount: gpsCount
     };
-  });
+  }));
 
   const allDates = birds
     .flatMap((bird) => bird.images.map((image) => normalizeExifDate(image.captureDateRaw)))
@@ -542,4 +595,7 @@ function build() {
   console.log(`Built ${birds.length} bird page(s).`);
 }
 
-build();
+build().catch((error) => {
+  console.error('Build failed.', error);
+  process.exitCode = 1;
+});

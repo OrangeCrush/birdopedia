@@ -1,0 +1,15 @@
+{
+  "name": "birdopedia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A static, photography-first bird encyclopedia built from your own images.",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "fetch:ebird": "node scripts/fetch-ebird.js",
+    "fetch:wikidata": "node scripts/fetch-wikidata.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "exifr": "^7.1.3"
+  }
+}

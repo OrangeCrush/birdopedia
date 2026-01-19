@@ -12,7 +12,13 @@ A static, photography-first bird encyclopedia built from your own images.
    EBIRD_API_TOKEN=your_key_here
    ```
 
-3. Build the data + pages:
+3. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+4. Build the data + pages:
 
    ```bash
    node scripts/fetch-wikidata.js
@@ -20,7 +26,7 @@ A static, photography-first bird encyclopedia built from your own images.
    node scripts/build.js
    ```
 
-4. Run the local server:
+5. Run the local server:
 
    ```bash
    node server.js
@@ -61,4 +67,3 @@ If the folder name does not match an eBird common name, add a mapping in `data/e
    ```
 
 If you also want to refresh eBird taxonomy data, run `node scripts/fetch-ebird.js` before rebuilding.
-
