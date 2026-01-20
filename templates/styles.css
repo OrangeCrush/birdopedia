@@ -87,6 +87,11 @@ a {
   align-items: center;
 }
 
+.site-hero__content {
+  grid-area: content;
+}
+
+
 .site-hero__content h1 {
   font-size: clamp(2.8rem, 5vw, 4.4rem);
 }
@@ -122,6 +127,19 @@ a {
 
 .index-main {
   padding: 0 clamp(1.5rem, 4vw, 4rem) 4rem;
+  display: grid;
+  gap: 2rem;
+  grid-template-areas:
+    "sidebar"
+    "collection";
+}
+
+.index-sidebar {
+  grid-area: sidebar;
+}
+
+.collection {
+  grid-area: collection;
 }
 
 .section-title {
@@ -363,6 +381,15 @@ a {
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.1);
 }
 
+.site-hero__stats .section-title {
+  grid-column: 1 / -1;
+  margin-bottom: 0.25rem;
+}
+
+.site-hero__stats .section-title h2 {
+  font-size: 1.6rem;
+}
+
 .site-hero__stats .stat {
   background: rgba(255, 255, 255, 0.85);
   border-radius: 14px;
@@ -376,7 +403,7 @@ a {
 }
 
 .site-hero__stats strong {
-  font-size: 0.95rem;
+  font-size: 1.2rem;
 }
 
 .profile-grid {
@@ -458,6 +485,19 @@ a {
 @media (min-width: 900px) {
   .site-hero {
     grid-template-columns: 1.2fr 0.8fr;
+    grid-template-areas:
+      "content content";
+  }
+
+  .index-main {
+    grid-template-columns: 2fr minmax(240px, 0.9fr);
+    grid-template-areas: "collection sidebar";
+    align-items: start;
+  }
+
+  .index-sidebar {
+    position: sticky;
+    top: 2rem;
   }
 
   .bird-hero {
@@ -466,6 +506,10 @@ a {
       "summary media"
       "details media";
   }
+}
+
+.index-sidebar .site-hero__stats {
+  margin-top: 0;
 }
 
 @media (max-width: 720px) {

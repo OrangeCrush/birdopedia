@@ -290,51 +290,57 @@ function renderIndex(birds, collectionStats) {
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
       </div>
-      <div class="site-hero__stats">
-        <div class="stat">
-          <span class="stat__label">Total species</span>
-          <strong>${collectionStats.totalSpecies}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Total photos</span>
-          <strong>${collectionStats.totalPhotos}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Earliest capture</span>
-          <strong>${collectionStats.earliest || 'Unknown'}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Latest capture</span>
-          <strong>${collectionStats.latest || 'Unknown'}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Most photographed species</span>
-          <strong>${collectionStats.topSpecies || 'Unknown'}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Most photographed location</span>
-          <strong>${collectionStats.topLocation || 'Unknown'}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Most used camera</span>
-          <strong>${collectionStats.topCamera || 'Unknown'}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Most used lens</span>
-          <strong>${collectionStats.topLens || 'Unknown'}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">New species (30 days)</span>
-          <strong>${collectionStats.newSpeciesCount}</strong>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Days in the field</span>
-          <strong>${collectionStats.daysInField}</strong>
-        </div>
-      </div>
     </header>
 
     <main class="index-main">
+      <aside class="index-sidebar">
+        <div class="site-hero__stats">
+          <div class="section-title">
+            <h2>Collection Highlights</h2>
+            <p>Quick look at the overall archive.</p>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Total species</span>
+            <strong>${collectionStats.totalSpecies}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Total photos</span>
+            <strong>${collectionStats.totalPhotos}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Earliest capture</span>
+            <strong>${collectionStats.earliest || 'Unknown'}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Latest capture</span>
+            <strong>${collectionStats.latest || 'Unknown'}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Most photographed species</span>
+            <strong>${collectionStats.topSpecies || 'Unknown'}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Most photographed location</span>
+            <strong>${collectionStats.topLocation || 'Unknown'}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Most used camera</span>
+            <strong>${collectionStats.topCamera || 'Unknown'}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Most used lens</span>
+            <strong>${collectionStats.topLens || 'Unknown'}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">New species (30 days)</span>
+            <strong>${collectionStats.newSpeciesCount}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat__label">Days in the field</span>
+            <strong>${collectionStats.daysInField}</strong>
+          </div>
+        </div>
+      </aside>
       <section class="collection">
         <div class="section-title">
           <h2>Species Index</h2>

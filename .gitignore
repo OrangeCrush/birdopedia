@@ -4,3 +4,4 @@ data/*
 !data/ebird.example.json
 !data/ebird.overrides.example.json
 public/*
+node_modules/
