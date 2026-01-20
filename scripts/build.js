@@ -324,6 +324,10 @@ function renderIndex(birds, collectionStats) {
             <span class="stat__value">${collectionStats.newSpeciesCount}</span>
           </div>
           <div class="stat">
+            <span class="stat__label">Top month</span>
+            <span class="stat__value">${collectionStats.topMonth || 'Unknown'}</span>
+          </div>
+          <div class="stat">
             <span class="stat__label">Days in the field</span>
             <span class="stat__value">${collectionStats.daysInField}</span>
           </div>
@@ -600,6 +604,19 @@ async function build() {
     .filter(Boolean)
     .sort((a, b) => a - b);
   const uniqueDays = new Set(allDates.map((date) => date.toISOString().slice(0, 10)));
+  const monthCounts = allDates.reduce((acc, date) => {
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const topMonthEntry = Object.entries(monthCounts).sort((a, b) => b[1] - a[1])[0] || null;
+  const topMonthLabel = topMonthEntry
+    ? `${new Date(`${topMonthEntry[0]}-01T00:00:00Z`).toLocaleString('en-US', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC'
+      })} (${topMonthEntry[1]})`
+    : null;
 
   const topSpecies = populatedBirds.slice().sort((a, b) => b.count - a.count)[0];
   const topSpeciesLabel = topSpecies ? `${topSpecies.name} (${topSpecies.count})` : null;
@@ -621,7 +638,8 @@ async function build() {
     latest: allDates[allDates.length - 1] ? allDates[allDates.length - 1].toISOString().slice(0, 10) : null,
     topSpecies: topSpeciesLabel,
     newSpeciesCount,
-    daysInField: uniqueDays.size
+    daysInField: uniqueDays.size,
+    topMonth: topMonthLabel
   };
 
   const birdSummaries = populatedBirds.map((bird) => ({
