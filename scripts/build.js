@@ -301,43 +301,31 @@ function renderIndex(birds, collectionStats) {
           </div>
           <div class="stat">
             <span class="stat__label">Total species</span>
-            <strong>${collectionStats.totalSpecies}</strong>
+            <span class="stat__value">${collectionStats.totalSpecies}</span>
           </div>
           <div class="stat">
             <span class="stat__label">Total photos</span>
-            <strong>${collectionStats.totalPhotos}</strong>
+            <span class="stat__value">${collectionStats.totalPhotos}</span>
           </div>
           <div class="stat">
             <span class="stat__label">Earliest capture</span>
-            <strong>${collectionStats.earliest || 'Unknown'}</strong>
+            <span class="stat__value">${collectionStats.earliest || 'Unknown'}</span>
           </div>
           <div class="stat">
             <span class="stat__label">Latest capture</span>
-            <strong>${collectionStats.latest || 'Unknown'}</strong>
+            <span class="stat__value">${collectionStats.latest || 'Unknown'}</span>
           </div>
           <div class="stat">
             <span class="stat__label">Most photographed species</span>
-            <strong>${collectionStats.topSpecies || 'Unknown'}</strong>
-          </div>
-          <div class="stat">
-            <span class="stat__label">Most photographed location</span>
-            <strong>${collectionStats.topLocation || 'Unknown'}</strong>
-          </div>
-          <div class="stat">
-            <span class="stat__label">Most used camera</span>
-            <strong>${collectionStats.topCamera || 'Unknown'}</strong>
-          </div>
-          <div class="stat">
-            <span class="stat__label">Most used lens</span>
-            <strong>${collectionStats.topLens || 'Unknown'}</strong>
+            <span class="stat__value">${collectionStats.topSpecies || 'Unknown'}</span>
           </div>
           <div class="stat">
             <span class="stat__label">New species (30 days)</span>
-            <strong>${collectionStats.newSpeciesCount}</strong>
+            <span class="stat__value">${collectionStats.newSpeciesCount}</span>
           </div>
           <div class="stat">
             <span class="stat__label">Days in the field</span>
-            <strong>${collectionStats.daysInField}</strong>
+            <span class="stat__value">${collectionStats.daysInField}</span>
           </div>
         </div>
       </aside>
@@ -613,33 +601,6 @@ async function build() {
     .sort((a, b) => a - b);
   const uniqueDays = new Set(allDates.map((date) => date.toISOString().slice(0, 10)));
 
-  const cameraCounts = populatedBirds
-    .flatMap((bird) => bird.images.map((image) => image.camera))
-    .filter((camera) => camera && camera !== 'Unknown')
-    .reduce((acc, camera) => {
-      acc[camera] = (acc[camera] || 0) + 1;
-      return acc;
-    }, {});
-
-  const topCamera = Object.entries(cameraCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-  const lensCounts = populatedBirds
-    .flatMap((bird) => bird.images.map((image) => image.lens))
-    .filter((lens) => lens && lens !== 'Unknown')
-    .reduce((acc, lens) => {
-      acc[lens] = (acc[lens] || 0) + 1;
-      return acc;
-    }, {});
-  const topLens = Object.entries(lensCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-
-  const locationCounts = populatedBirds
-    .flatMap((bird) => bird.images.map((image) => image.gps?.display))
-    .filter(Boolean)
-    .reduce((acc, location) => {
-      acc[location] = (acc[location] || 0) + 1;
-      return acc;
-    }, {});
-  const topLocation = Object.entries(locationCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-
   const topSpecies = populatedBirds.slice().sort((a, b) => b.count - a.count)[0];
   const topSpeciesLabel = topSpecies ? `${topSpecies.name} (${topSpecies.count})` : null;
 
@@ -658,9 +619,6 @@ async function build() {
     totalPhotos: populatedBirds.reduce((sum, bird) => sum + bird.count, 0),
     earliest: allDates[0] ? allDates[0].toISOString().slice(0, 10) : null,
     latest: allDates[allDates.length - 1] ? allDates[allDates.length - 1].toISOString().slice(0, 10) : null,
-    topCamera,
-    topLens,
-    topLocation,
     topSpecies: topSpeciesLabel,
     newSpeciesCount,
     daysInField: uniqueDays.size

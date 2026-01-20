@@ -398,12 +398,15 @@ a {
 }
 
 .site-hero__stats .stat__label {
-  font-size: 0.58rem;
+  color: var(--ink);
+  font-size: 0.72rem;
   letter-spacing: 0.14em;
+  font-weight: 800;
 }
 
-.site-hero__stats strong {
+.site-hero__stats .stat__value {
   font-size: 1.2rem;
+  font-weight: 400;
 }
 
 .profile-grid {
