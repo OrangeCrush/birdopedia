@@ -409,6 +409,55 @@ a {
   font-weight: 400;
 }
 
+.featured-shot {
+  margin: 0 clamp(1.5rem, 4vw, 4rem) 2.5rem;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 2rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: block;
+}
+
+.featured-shot__media {
+  border-radius: 18px;
+  overflow: hidden;
+  background: #101010;
+  aspect-ratio: 3 / 2;
+}
+
+.featured-shot__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.featured-shot__info h2 {
+  margin: 0.3rem 0 0.5rem;
+}
+
+.featured-shot__info {
+  margin-top: 1.25rem;
+}
+
+.featured-shot__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (min-width: 900px) {
+  .index-sidebar .featured-shot {
+    margin: 0 0 2.75rem;
+  }
+
+  .index-sidebar .site-hero__stats {
+    margin-top: 0;
+  }
+}
+
 .profile-grid {
   display: grid;
   gap: 1rem;

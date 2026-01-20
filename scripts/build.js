@@ -259,7 +259,7 @@ function renderLayout({ title, description, bodyClass, content, extraHead = '', 
 </html>`;
 }
 
-function renderIndex(birds, collectionStats) {
+function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
   const listing = birds
     .map((bird) => {
       const href = `/${toWebPath('img', bird.name, 'index.html')}`;
@@ -278,6 +278,24 @@ function renderIndex(birds, collectionStats) {
     ? `<a class="meta-link" href="${config.ebirdProfileUrl}">eBird profile</a>`
     : '';
   const bio = config.siteLede || config.authorBio || 'A growing field guide built from days in the field.';
+  const featuredSection = featuredImage
+    ? `
+      <section class="featured-shot">
+        <a class="featured-shot__media" href="${featuredImage.speciesHref}">
+          <img src="/${featuredImage.src}" alt="${featuredImage.bird} featured photograph" loading="lazy" />
+        </a>
+        <div class="featured-shot__info">
+          <p class="eyebrow">Featured Moment</p>
+          <h2><a href="${featuredImage.speciesHref}">${featuredImage.bird}</a></h2>
+        </div>
+      </section>`
+    : '';
+  const featuredData = featuredImages?.length
+    ? `<script type="application/json" id="featured-data">${JSON.stringify(featuredImages).replace(
+        /</g,
+        '\\u003c'
+      )}</script>`
+    : '';
 
   const content = `
     <header class="site-hero">
@@ -294,6 +312,7 @@ function renderIndex(birds, collectionStats) {
 
     <main class="index-main">
       <aside class="index-sidebar">
+        ${featuredSection}
         <div class="site-hero__stats">
           <div class="section-title">
             <h2>Collection Highlights</h2>
@@ -332,6 +351,7 @@ function renderIndex(birds, collectionStats) {
             <span class="stat__value">${collectionStats.daysInField}</span>
           </div>
         </div>
+        ${featuredData}
       </aside>
       <section class="collection">
         <div class="section-title">
@@ -352,7 +372,8 @@ function renderIndex(birds, collectionStats) {
     title: 'Home',
     description: 'A photographic encyclopedia of birds.',
     bodyClass: 'page-index',
-    content
+    content,
+    extraScripts: '<script src="/index.js"></script>'
   });
 }
 
@@ -549,11 +570,15 @@ async function build() {
 
   const stylesSource = path.join(TEMPLATES_DIR, 'styles.css');
   const scriptSource = path.join(TEMPLATES_DIR, 'bird.js');
+  const indexScriptSource = path.join(TEMPLATES_DIR, 'index.js');
   if (fs.existsSync(stylesSource)) {
     fs.copyFileSync(stylesSource, path.join(PUBLIC_DIR, 'styles.css'));
   }
   if (fs.existsSync(scriptSource)) {
     fs.copyFileSync(scriptSource, path.join(PUBLIC_DIR, 'bird.js'));
+  }
+  if (fs.existsSync(indexScriptSource)) {
+    fs.copyFileSync(indexScriptSource, path.join(PUBLIC_DIR, 'index.js'));
   }
 
   const birds = await Promise.all(listBirds().map(async (birdName) => {
@@ -648,7 +673,24 @@ async function build() {
     latest: bird.latest
   }));
 
-  fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), renderIndex(birdSummaries, collectionStats));
+  const featuredImages = populatedBirds.length
+    ? populatedBirds.flatMap((bird) => {
+        const speciesHref = `/${toWebPath('img', bird.name, 'index.html')}`;
+        return bird.images.map((image) => ({
+          bird: bird.name,
+          src: image.src,
+          speciesHref
+        }));
+      })
+    : [];
+  const featuredImage = featuredImages.length
+    ? featuredImages[Math.floor(Math.random() * featuredImages.length)]
+    : null;
+
+  fs.writeFileSync(
+    path.join(PUBLIC_DIR, 'index.html'),
+    renderIndex(birdSummaries, collectionStats, featuredImage, featuredImages)
+  );
 
   populatedBirds.forEach((bird) => {
     const ebirdInfo = ebird.species?.[bird.name];
