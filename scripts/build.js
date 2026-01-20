@@ -5,6 +5,7 @@ const exifr = require('exifr');
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const IMG_DIR = path.join(PUBLIC_DIR, 'img');
+const SITE_DIR = path.join(PUBLIC_DIR, 'birdopedia');
 const TEMPLATES_DIR = path.join(ROOT, 'templates');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
 const EBIRD_PATH = path.join(ROOT, 'data', 'ebird.json');
@@ -261,7 +262,7 @@ function renderLayout({ title, description, bodyClass, content, extraHead = '', 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title} | ${siteTitle}</title>
     <meta name="description" content="${description}" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/birdopedia/styles.css" />
     ${extraHead}
   </head>
   <body class="${bodyClass}">
@@ -274,7 +275,7 @@ function renderLayout({ title, description, bodyClass, content, extraHead = '', 
 function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
   const listing = birds
     .map((bird) => {
-      const href = `/${toWebPath('img', bird.name, 'index.html')}`;
+      const href = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
       return `
         <li class="bird-card">
           <a class="bird-card__link" href="${href}">
@@ -386,7 +387,7 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
     description: 'A photographic encyclopedia of birds.',
     bodyClass: 'page-index',
     content,
-    extraScripts: '<script src="/index.js"></script>'
+    extraScripts: '<script src="/birdopedia/index.js"></script>'
   });
 }
 
@@ -513,7 +514,7 @@ function renderBirdPage(bird, ebirdInfo) {
   const content = `
     <header class="bird-hero">
       <div class="bird-hero__summary">
-        <a class="back-link" href="/index.html">← Back to index</a>
+        <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
         <p class="eyebrow">${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'}</p>
         <h1>${bird.name}</h1>
         <p class="lede">${profile.scientificName || 'Species profile pending.'}</p>
@@ -572,7 +573,7 @@ function renderBirdPage(bird, ebirdInfo) {
     description: `Photography and field notes for ${bird.name}.`,
     bodyClass: 'page-bird',
     content,
-    extraScripts: '<script src="/bird.js"></script>'
+    extraScripts: '<script src="/birdopedia/bird.js"></script>'
   });
 }
 
@@ -580,18 +581,21 @@ async function build() {
   if (!fs.existsSync(PUBLIC_DIR)) {
     fs.mkdirSync(PUBLIC_DIR, { recursive: true });
   }
+  if (!fs.existsSync(SITE_DIR)) {
+    fs.mkdirSync(SITE_DIR, { recursive: true });
+  }
 
   const stylesSource = path.join(TEMPLATES_DIR, 'styles.css');
   const scriptSource = path.join(TEMPLATES_DIR, 'bird.js');
   const indexScriptSource = path.join(TEMPLATES_DIR, 'index.js');
   if (fs.existsSync(stylesSource)) {
-    fs.copyFileSync(stylesSource, path.join(PUBLIC_DIR, 'styles.css'));
+    fs.copyFileSync(stylesSource, path.join(SITE_DIR, 'styles.css'));
   }
   if (fs.existsSync(scriptSource)) {
-    fs.copyFileSync(scriptSource, path.join(PUBLIC_DIR, 'bird.js'));
+    fs.copyFileSync(scriptSource, path.join(SITE_DIR, 'bird.js'));
   }
   if (fs.existsSync(indexScriptSource)) {
-    fs.copyFileSync(indexScriptSource, path.join(PUBLIC_DIR, 'index.js'));
+    fs.copyFileSync(indexScriptSource, path.join(SITE_DIR, 'index.js'));
   }
 
   const birds = await Promise.all(listBirds().map(async (birdName) => {
@@ -688,7 +692,7 @@ async function build() {
 
   const featuredImages = populatedBirds.length
     ? populatedBirds.flatMap((bird) => {
-        const speciesHref = `/${toWebPath('img', bird.name, 'index.html')}`;
+        const speciesHref = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
         return bird.images.map((image) => ({
           bird: bird.name,
           src: image.src,
@@ -698,15 +702,18 @@ async function build() {
       })
     : [];
 
-  fs.writeFileSync(
-    path.join(PUBLIC_DIR, 'index.html'),
-    renderIndex(birdSummaries, collectionStats, null, featuredImages)
-  );
+  const indexHtml = renderIndex(birdSummaries, collectionStats, null, featuredImages);
+  fs.writeFileSync(path.join(SITE_DIR, 'index.html'), indexHtml);
+  fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), indexHtml);
 
   populatedBirds.forEach((bird) => {
     const ebirdInfo = ebird.species?.[bird.name];
     const birdHtml = renderBirdPage(bird, ebirdInfo);
-    fs.writeFileSync(path.join(IMG_DIR, bird.name, 'index.html'), birdHtml);
+    const birdDir = path.join(SITE_DIR, bird.name);
+    if (!fs.existsSync(birdDir)) {
+      fs.mkdirSync(birdDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(birdDir, 'index.html'), birdHtml);
   });
 
   console.log(`Built ${populatedBirds.length} bird page(s).`);
