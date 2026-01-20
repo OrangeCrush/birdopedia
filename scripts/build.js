@@ -100,7 +100,19 @@ function formatDate(value) {
   if (!date) {
     return 'Unknown';
   }
-  return date.toISOString().replace('T', ' ').slice(0, 19);
+  return formatDisplayDate(date);
+}
+
+function formatDisplayDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC'
+  }).format(date);
 }
 
 function exifToIso(dateValue, offsetValue) {
@@ -278,15 +290,16 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
     ? `<a class="meta-link" href="${config.ebirdProfileUrl}">eBird profile</a>`
     : '';
   const bio = config.siteLede || config.authorBio || 'A growing field guide built from days in the field.';
-  const featuredSection = featuredImage
+  const featuredSection = featuredImages?.length
     ? `
-      <section class="featured-shot">
-        <a class="featured-shot__media" href="${featuredImage.speciesHref}">
-          <img src="/${featuredImage.src}" alt="${featuredImage.bird} featured photograph" loading="lazy" />
+      <section class="featured-shot" data-featured>
+        <a class="featured-shot__media" href="#">
+          <img src="" alt="" loading="lazy" />
         </a>
         <div class="featured-shot__info">
           <p class="eyebrow">Featured Moment</p>
-          <h2><a href="${featuredImage.speciesHref}">${featuredImage.bird}</a></h2>
+          <h2><a href="#"></a></h2>
+          <p class="featured-shot__date"></p>
         </div>
       </section>`
     : '';
@@ -609,8 +622,8 @@ async function build() {
 
     const gpsCount = images.filter((image) => image.gps).length;
 
-    const earliest = dates[0] ? dates[0].toISOString().slice(0, 10) : null;
-    const latest = dates[dates.length - 1] ? dates[dates.length - 1].toISOString().slice(0, 10) : null;
+    const earliest = dates[0] ? formatDisplayDate(dates[0]) : null;
+    const latest = dates[dates.length - 1] ? formatDisplayDate(dates[dates.length - 1]) : null;
 
     return {
       name: birdName,
@@ -659,8 +672,8 @@ async function build() {
   const collectionStats = {
     totalSpecies: populatedBirds.length,
     totalPhotos: populatedBirds.reduce((sum, bird) => sum + bird.count, 0),
-    earliest: allDates[0] ? allDates[0].toISOString().slice(0, 10) : null,
-    latest: allDates[allDates.length - 1] ? allDates[allDates.length - 1].toISOString().slice(0, 10) : null,
+    earliest: allDates[0] ? formatDisplayDate(allDates[0]) : null,
+    latest: allDates[allDates.length - 1] ? formatDisplayDate(allDates[allDates.length - 1]) : null,
     topSpecies: topSpeciesLabel,
     newSpeciesCount,
     daysInField: uniqueDays.size,
@@ -679,17 +692,15 @@ async function build() {
         return bird.images.map((image) => ({
           bird: bird.name,
           src: image.src,
+          captureDate: image.captureDate,
           speciesHref
         }));
       })
     : [];
-  const featuredImage = featuredImages.length
-    ? featuredImages[Math.floor(Math.random() * featuredImages.length)]
-    : null;
 
   fs.writeFileSync(
     path.join(PUBLIC_DIR, 'index.html'),
-    renderIndex(birdSummaries, collectionStats, featuredImage, featuredImages)
+    renderIndex(birdSummaries, collectionStats, null, featuredImages)
   );
 
   populatedBirds.forEach((bird) => {

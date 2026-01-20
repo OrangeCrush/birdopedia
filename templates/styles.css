@@ -548,8 +548,7 @@ a {
   }
 
   .index-sidebar {
-    position: sticky;
-    top: 2rem;
+    position: static;
   }
 
   .bird-hero {
