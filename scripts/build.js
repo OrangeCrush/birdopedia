@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const exifr = require('exifr');
+const sharp = require('sharp');
 
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -53,6 +54,40 @@ function listImages(birdDir) {
     .map((entry) => entry.name)
     .filter((name) => /\.(jpe?g|png|webp)$/i.test(name))
     .sort((a, b) => a.localeCompare(b));
+}
+
+function avifTargetPath(imagePath) {
+  const ext = path.extname(imagePath).toLowerCase();
+  if (ext !== '.jpg' && ext !== '.jpeg') {
+    return null;
+  }
+  const base = imagePath.slice(0, -ext.length);
+  return `${base}.avif`;
+}
+
+async function ensureAvifVariant(imagePath, progress) {
+  const target = avifTargetPath(imagePath);
+  if (!target) {
+    return false;
+  }
+  try {
+    const sourceStat = fs.statSync(imagePath);
+    if (fs.existsSync(target)) {
+      const targetStat = fs.statSync(target);
+      if (targetStat.mtimeMs >= sourceStat.mtimeMs) {
+        return false;
+      }
+    }
+    await sharp(imagePath)
+      .avif({ quality: 60, effort: 4 })
+      .toFile(target);
+    const prefix = progress ? `AVIF ${progress.current}/${progress.total}` : 'AVIF';
+    console.log(`${prefix}: generated ${path.basename(target)}`);
+    return true;
+  } catch (error) {
+    console.warn(`AVIF: failed to generate for ${imagePath}.`, error.message || error);
+    return false;
+  }
 }
 
 function formatBytes(bytes) {
@@ -194,6 +229,13 @@ async function collectImageMetadata(birdName, filename) {
   if (!exif || Object.keys(exif).length === 0) {
     console.warn(`EXIF: no metadata found for ${path.join(birdName, filename)}.`);
   }
+  const ext = path.extname(filename).toLowerCase();
+  const avifName = ext === '.jpg' || ext === '.jpeg'
+    ? `${path.basename(filename, ext)}.avif`
+    : null;
+  const imageSrc = avifName
+    ? toWebPath('img', birdName, avifName)
+    : toWebPath('img', birdName, filename);
   const stat = fs.statSync(imagePath);
   const camera = [exif.Make, exif.Model].filter(Boolean).join(' ').trim();
   const gps = formatGps(
@@ -235,7 +277,7 @@ async function collectImageMetadata(birdName, filename) {
 
   return {
     filename,
-    src: toWebPath('img', birdName, filename),
+    src: imageSrc,
     width: width || 'Unknown',
     height: height || 'Unknown',
     megapixels: Number.isFinite(megapixelsRaw) ? megapixelsRaw.toFixed(1) : 'Unknown',
@@ -598,11 +640,34 @@ async function build() {
     fs.copyFileSync(indexScriptSource, path.join(SITE_DIR, 'index.js'));
   }
 
-  const birds = await Promise.all(listBirds().map(async (birdName) => {
+  const allBirds = listBirds();
+  const avifCandidates = allBirds.flatMap((birdName) =>
+    listImages(birdName)
+      .map((filename) => path.join(IMG_DIR, birdName, filename))
+      .filter((imagePath) => avifTargetPath(imagePath))
+  );
+  const avifTotal = avifCandidates.length;
+  let avifCreated = 0;
+  let avifIndex = 0;
+  const birds = await Promise.all(allBirds.map(async (birdName) => {
     const imageFiles = listImages(birdName);
     if (imageFiles.length === 0) {
       console.warn(`Warning: No images found for ${birdName}.`);
       return null;
+    }
+    let birdAvifCandidates = 0;
+    let birdAvifUpdated = 0;
+    for (const filename of imageFiles) {
+      const imagePath = path.join(IMG_DIR, birdName, filename);
+      if (!avifTargetPath(imagePath)) {
+        continue;
+      }
+      avifIndex += 1;
+      birdAvifCandidates += 1;
+      if (await ensureAvifVariant(imagePath, { current: avifIndex, total: avifTotal })) {
+        avifCreated += 1;
+        birdAvifUpdated += 1;
+      }
     }
     const images = await Promise.all(imageFiles.map((filename) => collectImageMetadata(birdName, filename)));
     images.sort((a, b) => {
@@ -716,6 +781,9 @@ async function build() {
     fs.writeFileSync(path.join(birdDir, 'index.html'), birdHtml);
   });
 
+  if (avifCreated > 0) {
+    console.log(`Generated ${avifCreated} AVIF file(s).`);
+  }
   console.log(`Built ${populatedBirds.length} bird page(s).`);
 }
 
