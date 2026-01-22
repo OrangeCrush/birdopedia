@@ -74,13 +74,19 @@ async function ensureAvifVariant(imagePath, progress) {
     const sourceStat = fs.statSync(imagePath);
     if (fs.existsSync(target)) {
       const targetStat = fs.statSync(target);
-      if (targetStat.mtimeMs >= sourceStat.mtimeMs) {
+      if (targetStat.size === 0) {
+        console.warn(`AVIF: zero-byte file found, regenerating ${path.basename(target)}`);
+      } else if (targetStat.mtimeMs >= sourceStat.mtimeMs) {
         return false;
       }
     }
     await sharp(imagePath)
       .avif({ quality: 60, effort: 4 })
       .toFile(target);
+    const outputStat = fs.statSync(target);
+    if (outputStat.size === 0) {
+      console.warn(`AVIF: generated zero-byte file for ${path.basename(target)}`);
+    }
     const prefix = progress ? `AVIF ${progress.current}/${progress.total}` : 'AVIF';
     console.log(`${prefix}: generated ${path.basename(target)}`);
     return true;
