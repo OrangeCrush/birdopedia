@@ -236,6 +236,7 @@ async function collectImageMetadata(birdName, filename) {
   const imageSrc = avifName
     ? toWebPath('img', birdName, avifName)
     : toWebPath('img', birdName, filename);
+  const originalSrc = toWebPath('img', birdName, filename);
   const stat = fs.statSync(imagePath);
   const camera = [exif.Make, exif.Model].filter(Boolean).join(' ').trim();
   const gps = formatGps(
@@ -278,6 +279,7 @@ async function collectImageMetadata(birdName, filename) {
   return {
     filename,
     src: imageSrc,
+    originalSrc,
     width: width || 'Unknown',
     height: height || 'Unknown',
     megapixels: Number.isFinite(megapixelsRaw) ? megapixelsRaw.toFixed(1) : 'Unknown',
@@ -476,12 +478,18 @@ function renderBirdPage(bird, ebirdInfo) {
       const gpsSection = image.gps
         ? `<a class="meta-link" href="${image.gps.link}" target="_blank" rel="noopener noreferrer">${image.gps.display}</a>`
         : 'Unknown';
+      const isJpeg = /\.(jpe?g)$/i.test(image.filename);
+      const downloadLabel = isJpeg ? 'Full Size JPEG' : 'Download original';
+      const downloadLink = image.originalSrc
+        ? `<a class="meta-link meta-link--download" href="/${image.originalSrc}" download>${downloadLabel}</a>`
+        : 'Unknown';
 
       return `
         <article class="image-card">
           <div class="image-card__thumb" style="background-image: url('/${image.src}')"></div>
           <div class="image-card__body">
             <dl>
+              <div><dt>Download</dt><dd>${downloadLink}</dd></div>
               <div><dt>Captured</dt><dd><time data-capture="${image.captureDateIso || ''}">${image.captureDate}</time></dd></div>
               <div><dt>Camera</dt><dd>${image.camera}</dd></div>
               <div><dt>Lens</dt><dd>${image.lens}</dd></div>
