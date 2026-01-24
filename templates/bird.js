@@ -1,4 +1,26 @@
 (function () {
+  const applyImageLoadingEffects = (root = document) => {
+    const images = Array.from(root.querySelectorAll('img.media-image'));
+    if (!images.length) {
+      return;
+    }
+    images.forEach((img) => {
+      const frame = img.closest('.media-frame');
+      const markLoaded = () => {
+        img.classList.add('is-loaded');
+        if (frame) {
+          frame.classList.add('is-loaded');
+        }
+      };
+      if (img.complete && img.naturalWidth > 0) {
+        markLoaded();
+        return;
+      }
+      img.addEventListener('load', markLoaded, { once: true });
+      img.addEventListener('error', markLoaded, { once: true });
+    });
+  };
+
   const carousels = document.querySelectorAll('.carousel');
   if (!carousels.length) {
     return;
@@ -95,4 +117,6 @@
       }
     });
   });
+
+  applyImageLoadingEffects();
 })();

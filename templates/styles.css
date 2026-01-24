@@ -239,6 +239,61 @@ a {
   box-shadow: var(--shadow);
 }
 
+.media-frame {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(140deg, rgba(24, 20, 14, 0.75), rgba(70, 62, 48, 0.45));
+}
+
+.media-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.12), transparent 55%),
+    radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.08), transparent 60%);
+  opacity: 0.9;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.media-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.35) 45%, transparent 65%);
+  transform: translateX(-120%);
+  animation: shimmer 1.6s ease-in-out infinite;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.media-frame.is-loaded::before,
+.media-frame.is-loaded::after {
+  opacity: 0;
+  animation: none;
+}
+
+.media-image {
+  filter: blur(18px);
+  transform: scale(1.03);
+  transition: filter 0.8s ease, transform 0.8s ease;
+}
+
+.media-image.is-loaded {
+  filter: blur(0);
+  transform: scale(1);
+}
+
+.media-fade {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.media-fade.is-loaded {
+  opacity: 1;
+}
+
 .quick-facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -423,7 +478,6 @@ a {
 .featured-shot__media {
   border-radius: 18px;
   overflow: hidden;
-  background: #101010;
   aspect-ratio: 3 / 2;
 }
 
@@ -498,8 +552,13 @@ a {
 
 .image-card__thumb {
   height: 180px;
-  background-size: cover;
-  background-position: center;
+}
+
+.image-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .image-card__body {
@@ -595,6 +654,25 @@ a {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-frame::after {
+    animation: none;
+  }
+  .media-image,
+  .media-fade {
+    transition: none;
   }
 }
 

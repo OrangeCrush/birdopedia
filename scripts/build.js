@@ -71,12 +71,11 @@ async function ensureAvifVariant(imagePath, progress) {
     return false;
   }
   try {
-    const sourceStat = fs.statSync(imagePath);
     if (fs.existsSync(target)) {
       const targetStat = fs.statSync(target);
       if (targetStat.size === 0) {
         console.warn(`AVIF: zero-byte file found, regenerating ${path.basename(target)}`);
-      } else if (targetStat.mtimeMs >= sourceStat.mtimeMs) {
+      } else {
         return false;
       }
     }
@@ -344,8 +343,8 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
   const featuredSection = featuredImages?.length
     ? `
       <section class="featured-shot" data-featured>
-        <a class="featured-shot__media" href="#">
-          <img src="" alt="" loading="lazy" />
+        <a class="featured-shot__media media-frame" href="#">
+          <img class="media-image media-fade" src="" alt="" loading="eager" decoding="async" />
         </a>
         <div class="featured-shot__info">
           <p class="eyebrow">Featured Moment</p>
@@ -459,9 +458,11 @@ function renderBirdPage(bird, ebirdInfo) {
     .map((image, index) => {
       return `
         <img
-          class="carousel__image${index === 0 ? ' is-active' : ''}"
+          class="carousel__image media-image${index === 0 ? ' is-active' : ''}"
           src="/${image.src}"
           alt="${bird.name} photograph ${index + 1}"
+          loading="${index === 0 ? 'eager' : 'lazy'}"
+          decoding="async"
           data-caption-date="${image.captureDateIso || ''}"
           data-caption-camera="${image.camera}"
           data-caption-lens="${image.lens}"
@@ -480,7 +481,7 @@ function renderBirdPage(bird, ebirdInfo) {
     : '';
 
   const imageCards = bird.images
-    .map((image) => {
+    .map((image, index) => {
       const gpsSection = image.gps
         ? `<a class="meta-link" href="${image.gps.link}" target="_blank" rel="noopener noreferrer">${image.gps.display}</a>`
         : 'Unknown';
@@ -492,7 +493,15 @@ function renderBirdPage(bird, ebirdInfo) {
 
       return `
         <article class="image-card">
-          <div class="image-card__thumb" style="background-image: url('/${image.src}')"></div>
+          <div class="image-card__thumb media-frame">
+            <img
+              class="media-image media-fade"
+              src="/${image.src}"
+              alt="${bird.name} photograph ${index + 1}"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
           <div class="image-card__body">
             <dl>
               <div><dt>Download</dt><dd>${downloadLink}</dd></div>
@@ -580,7 +589,7 @@ function renderBirdPage(bird, ebirdInfo) {
       <div class="bird-hero__media">
         <div class="carousel" data-count="${bird.images.length}">
           ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="prev" aria-label="Previous image">‹</button>' : ''}
-          <div class="carousel__viewport">
+          <div class="carousel__viewport media-frame">
             ${carouselImages}
           </div>
           ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="next" aria-label="Next image">›</button>' : ''}
