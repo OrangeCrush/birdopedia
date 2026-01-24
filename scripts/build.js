@@ -629,6 +629,11 @@ function renderBirdPage(bird, ebirdInfo) {
       </div>
     </section>
 
+    <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
+      <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
+      <img class="preview-modal__image" alt="" />
+    </div>
+
     <footer class="site-footer">
       <span>${config.authorName || 'The photographer'} • ${bird.images.length} frames of ${bird.name}</span>
     </footer>`;

@@ -333,6 +333,7 @@ a {
   background: #101010;
   aspect-ratio: 3 / 2;
   min-height: 280px;
+  cursor: zoom-in;
 }
 
 .carousel__image {
@@ -343,6 +344,7 @@ a {
   object-fit: cover;
   opacity: 0;
   transition: opacity 0.5s ease;
+  cursor: zoom-in;
 }
 
 .carousel__image.is-active {
@@ -414,6 +416,55 @@ a {
   padding: 0.3rem 0.65rem;
   border-radius: 999px;
   box-shadow: 0 6px 16px rgba(32, 26, 19, 0.08);
+}
+
+.preview-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 10, 7, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 999;
+}
+
+.preview-modal.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.preview-modal__image {
+  max-width: min(96vw, 1600px);
+  max-height: 92vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  background: #0c0a07;
+}
+
+.preview-modal__close {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-deep);
+  font-size: 1.6rem;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+body.preview-open {
+  overflow: hidden;
 }
 
 .bird-profile,

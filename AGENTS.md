@@ -1,4 +1,4 @@
-The intention of this repository is to maintain a static website that showcases photographs of birds that the author has taken.  The website should model an encyclopedia, but not follow wikipedia too closely. There is a home page describing the overall website, that has an index listing of all of the birds that have images.
+The intention of this repository is to maintain a static website that showcases photographs of birds that the author has taken.   There is a home page describing the overall website, that has an index listing of all of the birds that have images.
 
 The intended use case of this repo is for a bird photographer to clone this repo, add their own images to public/img, and then be able to deploy public/ to a static website to be served.
  
@@ -20,4 +20,4 @@ The .env file: contains auth information for various integrations
 Project layout:
 The project contains a directory, public/img.  This directory will contain other directories that contain the common name of a bird species.  Inside this folder are pictures of that given species, along with their generated HTML file.
 
-
+Do not make changes under public/

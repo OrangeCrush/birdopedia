@@ -53,9 +53,53 @@
     node.textContent = formatLocal(value);
   });
 
+  const preview = document.querySelector('[data-preview]');
+  const previewImage = preview ? preview.querySelector('.preview-modal__image') : null;
+  const closeButton = preview ? preview.querySelector('[data-preview-close]') : null;
+
+  const openPreview = (img) => {
+    if (!preview || !previewImage || !img) {
+      return;
+    }
+    previewImage.src = img.currentSrc || img.src;
+    previewImage.alt = img.alt || 'Photo preview';
+    preview.classList.add('is-active');
+    preview.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('preview-open');
+  };
+
+  const closePreview = () => {
+    if (!preview || !previewImage) {
+      return;
+    }
+    preview.classList.remove('is-active');
+    preview.setAttribute('aria-hidden', 'true');
+    previewImage.removeAttribute('src');
+    document.body.classList.remove('preview-open');
+  };
+
+  if (preview) {
+    preview.addEventListener('click', (event) => {
+      if (event.target === preview || event.target === closeButton) {
+        closePreview();
+      }
+    });
+  }
+
+  if (closeButton) {
+    closeButton.addEventListener('click', closePreview);
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && preview?.classList.contains('is-active')) {
+      closePreview();
+    }
+  });
+
   carousels.forEach((carousel) => {
     const images = Array.from(carousel.querySelectorAll('.carousel__image'));
     const dots = Array.from(carousel.querySelectorAll('.carousel__dot'));
+    const viewport = carousel.querySelector('.carousel__viewport');
     const caption = carousel.querySelector('[data-caption]');
     const metaContainer = carousel.querySelector('[data-carousel-meta]');
     let index = 0;
@@ -116,6 +160,22 @@
         }
       }
     });
+
+    if (preview && viewport) {
+      viewport.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        if (target.closest('.carousel__btn') || target.closest('.carousel__dot')) {
+          return;
+        }
+        const active = images[index];
+        if (active) {
+          openPreview(active);
+        }
+      });
+    }
   });
 
   applyImageLoadingEffects();
