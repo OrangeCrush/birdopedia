@@ -10,6 +10,7 @@ const SITE_DIR = path.join(PUBLIC_DIR, 'birdopedia');
 const TEMPLATES_DIR = path.join(ROOT, 'templates');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
 const EBIRD_PATH = path.join(ROOT, 'data', 'ebird.json');
+const WIKIPEDIA_PATH = path.join(ROOT, 'data', 'wikipedia.json');
 
 function readJson(filePath, fallback) {
   try {
@@ -28,6 +29,15 @@ const config = readJson(CONFIG_PATH, {
 });
 const ebird = readJson(EBIRD_PATH, { species: {}, source: { name: 'eBird', url: 'https://ebird.org' } });
 const wikidata = readJson(path.join(ROOT, 'data', 'wikidata.json'), { species: {}, source: { name: 'Wikidata', url: 'https://query.wikidata.org/' } });
+const wikipedia = readJson(WIKIPEDIA_PATH, {
+  species: {},
+  source: {
+    name: 'Wikipedia',
+    url: 'https://en.wikipedia.org',
+    license: 'CC BY-SA 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/'
+  }
+});
 
 function toWebPath(...parts) {
   return parts
@@ -442,6 +452,7 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
 
 function renderBirdPage(bird, ebirdInfo) {
   const wikidataInfo = wikidata.species?.[bird.name] || {};
+  const wikipediaInfo = wikipedia.species?.[bird.name] || {};
   const profile = { ...(ebirdInfo || {}), ...wikidataInfo };
   const profileItems = [
     ['Scientific name', profile.scientificName],
@@ -557,13 +568,32 @@ function renderBirdPage(bird, ebirdInfo) {
     ? '<p class="empty-note">Add species profile data in data/ebird.json to enrich this page.</p>'
     : '';
 
-  const profileSection = hasProfileItems || hasNarrative
+  const summaryBlock = wikipediaInfo.summary
+    ? `
+      <div class="profile-summary">
+        <p>${wikipediaInfo.summary}</p>
+        <p class="summary-attribution">Source: <a class="meta-link" href="${wikipediaInfo.url || wikipedia.source?.url}" target="_blank" rel="noopener noreferrer">${wikipedia.source?.name || 'Wikipedia'}</a> (${wikipedia.source?.license || 'CC BY-SA'})</p>
+      </div>`
+    : '';
+
+  const sources = [
+    ebird.source?.name || 'eBird',
+    wikidata.source?.name || 'Wikidata',
+    wikipediaInfo.summary ? wikipedia.source?.name || 'Wikipedia' : null
+  ].filter(Boolean);
+
+  const sourcesText = sources.length > 2
+    ? `${sources.slice(0, -1).join(', ')}, and ${sources[sources.length - 1]}`
+    : sources.join(' and ');
+
+  const profileSection = hasProfileItems || hasNarrative || summaryBlock
     ? `
       <div class="species-panel">
         <div class="section-title">
           <h2>Species Profile</h2>
-          <p>Reference notes sourced from ${ebird.source?.name || 'eBird'} and ${wikidata.source?.name || 'Wikidata'}.</p>
+          <p>Reference notes sourced from ${sourcesText || 'eBird'}.</p>
         </div>
+        ${summaryBlock}
         <div class="profile-grid">${profileItems}${wikidataFacts}</div>
         ${narrativeBlocks}
         ${fallbackProfile}

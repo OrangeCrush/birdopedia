@@ -7,7 +7,9 @@ const IMG_DIR = path.join(ROOT, 'public', 'img');
 const DATA_DIR = path.join(ROOT, 'data');
 const EBIRD_PATH = path.join(DATA_DIR, 'ebird.json');
 const WIKIDATA_PATH = path.join(DATA_DIR, 'wikidata.json');
+const WIKIPEDIA_PATH = path.join(DATA_DIR, 'wikipedia.json');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'ebird.overrides.json');
+const WIKIPEDIA_OVERRIDES_PATH = path.join(DATA_DIR, 'wikipedia.overrides.json');
 const ENV_PATH = path.join(ROOT, '.env');
 const HARD_REFRESH = process.argv.includes('--hard');
 
@@ -47,6 +49,12 @@ function readEnvFile(filePath) {
 function ensureOverridesFile() {
   if (!fs.existsSync(OVERRIDES_PATH)) {
     fs.writeFileSync(OVERRIDES_PATH, JSON.stringify({ byFolder: {} }, null, 2));
+  }
+}
+
+function ensureWikipediaOverridesFile() {
+  if (!fs.existsSync(WIKIPEDIA_OVERRIDES_PATH)) {
+    fs.writeFileSync(WIKIPEDIA_OVERRIDES_PATH, JSON.stringify({}, null, 2));
   }
 }
 
@@ -90,6 +98,11 @@ function requestJson(url, headers = {}) {
       })
       .on('error', reject);
   });
+}
+
+function buildSummaryUrl(title) {
+  const slug = encodeURIComponent(title.replace(/ /g, '_'));
+  return `https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`;
 }
 
 function resolveOverride(folderName, overrideValue, taxonomy) {
@@ -365,9 +378,94 @@ async function fetchWikidata(ebirdPayload) {
   };
 }
 
+async function fetchWikipedia(birdFolders) {
+  const existing = readJson(WIKIPEDIA_PATH, { species: {} });
+  const existingSpecies = existing.species || {};
+  let reusedCount = 0;
+  let fetchedCount = 0;
+
+  if (!birdFolders.length) {
+    if (!HARD_REFRESH && Object.keys(existingSpecies).length) {
+      console.warn('No bird folders found. Keeping existing data/wikipedia.json entries.');
+      return { payload: existing, reusedCount: Object.keys(existingSpecies).length, fetchedCount: 0 };
+    }
+    console.warn('No bird folders found. Writing empty data/wikipedia.json.');
+    return {
+      payload: {
+        species: {},
+        source: {
+          name: 'Wikipedia',
+          url: 'https://en.wikipedia.org',
+          license: 'CC BY-SA 4.0',
+          licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/'
+        }
+      },
+      reusedCount: 0,
+      fetchedCount: 0
+    };
+  }
+
+  const overrides = readJson(WIKIPEDIA_OVERRIDES_PATH, {});
+  const species = {};
+
+  for (const folderName of birdFolders) {
+    if (!HARD_REFRESH && existingSpecies[folderName]) {
+      species[folderName] = existingSpecies[folderName];
+      reusedCount += 1;
+      continue;
+    }
+
+    const title = overrides[folderName] || folderName;
+    console.log(`Wikipedia: fetching ${folderName}...`);
+    fetchedCount += 1;
+
+    try {
+      const payload = await requestJson(buildSummaryUrl(title), {
+        'User-Agent': 'birdopedia/1.0 (local script)',
+        Accept: 'application/json'
+      });
+      if (payload.type === 'disambiguation') {
+        console.warn(`Wikipedia: disambiguation page for ${folderName}.`);
+        continue;
+      }
+      if (!payload.extract) {
+        console.warn(`Wikipedia: no summary extract for ${folderName}.`);
+        continue;
+      }
+      const pageUrl =
+        (payload.content_urls && payload.content_urls.desktop && payload.content_urls.desktop.page) ||
+        (payload.content_urls && payload.content_urls.mobile && payload.content_urls.mobile.page) ||
+        '';
+      species[folderName] = {
+        title: payload.title || title,
+        summary: payload.extract,
+        url: pageUrl,
+        timestamp: payload.timestamp || ''
+      };
+    } catch (error) {
+      console.warn(`Wikipedia request failed for ${folderName}: ${error.message || error}`);
+    }
+  }
+
+  return {
+    payload: {
+      species,
+      source: {
+        name: 'Wikipedia',
+        url: 'https://en.wikipedia.org',
+        license: 'CC BY-SA 4.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/'
+      }
+    },
+    reusedCount,
+    fetchedCount
+  };
+}
+
 async function main() {
   ensureDir(DATA_DIR);
   ensureOverridesFile();
+  ensureWikipediaOverridesFile();
 
   if (HARD_REFRESH) {
     console.log('Running in --hard mode: refreshing all species data.');
@@ -399,6 +497,20 @@ async function main() {
     );
   } else {
     console.log(`No Wikidata updates; reused ${wikidataResult.reusedCount} cached species.`);
+  }
+
+  const birdFolders = listBirdFolders();
+  const wikipediaResult = await fetchWikipedia(birdFolders);
+  const wikipediaPayload = wikipediaResult.payload;
+  const shouldWriteWikipedia =
+    HARD_REFRESH || wikipediaResult.fetchedCount > 0 || !fs.existsSync(WIKIPEDIA_PATH);
+  if (shouldWriteWikipedia) {
+    fs.writeFileSync(WIKIPEDIA_PATH, JSON.stringify(wikipediaPayload, null, 2));
+    console.log(
+      `Wrote Wikipedia summaries for ${Object.keys(wikipediaPayload.species || {}).length} species (fetched ${wikipediaResult.fetchedCount}, reused ${wikipediaResult.reusedCount}).`
+    );
+  } else {
+    console.log(`No Wikipedia updates; reused ${wikipediaResult.reusedCount} cached species.`);
   }
 }
 

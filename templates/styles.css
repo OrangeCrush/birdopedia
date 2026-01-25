@@ -598,6 +598,22 @@ body.preview-open {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
+.profile-summary {
+  margin: 1rem 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 22px rgba(34, 28, 20, 0.08);
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.summary-attribution {
+  margin-top: 0.65rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .profile-item span {
   display: block;
   text-transform: uppercase;
