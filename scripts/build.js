@@ -568,30 +568,51 @@ function renderBirdPage(bird, ebirdInfo) {
     ? '<p class="empty-note">Add species profile data in data/ebird.json to enrich this page.</p>'
     : '';
 
-  const summaryBlock = wikipediaInfo.summary
+  const summaryParagraphs = wikipediaInfo.summary
+    ? wikipediaInfo.summary
+        .split(/\n{2,}/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean)
+        .map((paragraph) => `<p>${paragraph}</p>`)
+        .join('')
+    : '';
+
+  const descriptionText = wikipediaInfo.description || '';
+  const showDescription = descriptionText && !/^species of bird/i.test(descriptionText.trim());
+
+  const summaryBlock = summaryParagraphs
     ? `
       <div class="profile-summary">
-        <p>${wikipediaInfo.summary}</p>
-        <p class="summary-attribution">Source: <a class="meta-link" href="${wikipediaInfo.url || wikipedia.source?.url}" target="_blank" rel="noopener noreferrer">${wikipedia.source?.name || 'Wikipedia'}</a> (${wikipedia.source?.license || 'CC BY-SA'})</p>
+        ${showDescription ? `<p class="summary-lede">${descriptionText}</p>` : ''}
+        ${summaryParagraphs}
       </div>`
     : '';
 
-  const sources = [
-    ebird.source?.name || 'eBird',
-    wikidata.source?.name || 'Wikidata',
-    wikipediaInfo.summary ? wikipedia.source?.name || 'Wikipedia' : null
-  ].filter(Boolean);
+  const sourceLinks = [];
+  if (ebird.source?.url) {
+    sourceLinks.push(`<a class="meta-link" href="${ebird.source.url}" target="_blank" rel="noopener noreferrer">${ebird.source.name || 'eBird'}</a>`);
+  }
+  if (wikidata.source?.url) {
+    sourceLinks.push(`<a class="meta-link" href="${wikidata.source.url}" target="_blank" rel="noopener noreferrer">${wikidata.source.name || 'Wikidata'}</a>`);
+  }
+  if (wikipediaInfo.summary) {
+    const wikiUrl = wikipediaInfo.url || wikipedia.source?.url || 'https://en.wikipedia.org';
+    const wikiLabel = wikipedia.source?.name || 'Wikipedia';
+    const license = wikipedia.source?.license || 'CC BY-SA';
+    sourceLinks.push(
+      `<a class="meta-link" href="${wikiUrl}" target="_blank" rel="noopener noreferrer">${wikiLabel}</a> (${license})`
+    );
+  }
 
-  const sourcesText = sources.length > 2
-    ? `${sources.slice(0, -1).join(', ')}, and ${sources[sources.length - 1]}`
-    : sources.join(' and ');
+  const sourcesFootnote = sourceLinks.length
+    ? ` • Sources: ${sourceLinks.join(' • ')}`
+    : '';
 
   const profileSection = hasProfileItems || hasNarrative || summaryBlock
     ? `
       <div class="species-panel">
         <div class="section-title">
           <h2>Species Profile</h2>
-          <p>Reference notes sourced from ${sourcesText || 'eBird'}.</p>
         </div>
         ${summaryBlock}
         <div class="profile-grid">${profileItems}${wikidataFacts}</div>
@@ -667,7 +688,7 @@ function renderBirdPage(bird, ebirdInfo) {
     </div>
 
     <footer class="site-footer">
-      <span>${config.authorName || 'The photographer'} • ${bird.images.length} frames of ${bird.name}</span>
+      <span>${config.authorName || 'The photographer'} • ${bird.images.length} frames of ${bird.name}${sourcesFootnote}</span>
     </footer>`;
 
   return renderLayout({

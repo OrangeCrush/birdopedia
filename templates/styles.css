@@ -608,10 +608,10 @@ body.preview-open {
   line-height: 1.6;
 }
 
-.summary-attribution {
-  margin-top: 0.65rem;
-  font-size: 0.85rem;
-  color: var(--muted);
+.summary-lede {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .profile-item span {
@@ -636,6 +636,7 @@ body.preview-open {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 1.5rem;
 }
+
 
 .image-card {
   background: white;

@@ -12,6 +12,9 @@ const OVERRIDES_PATH = path.join(DATA_DIR, 'ebird.overrides.json');
 const WIKIPEDIA_OVERRIDES_PATH = path.join(DATA_DIR, 'wikipedia.overrides.json');
 const ENV_PATH = path.join(ROOT, '.env');
 const HARD_REFRESH = process.argv.includes('--hard');
+const WIKIPEDIA_MIN_SUMMARY_CHARS = 420;
+const WIKIPEDIA_MAX_SUMMARY_CHARS = 1200;
+const WIKIPEDIA_MAX_PARAGRAPHS = 5;
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -103,6 +106,82 @@ function requestJson(url, headers = {}) {
 function buildSummaryUrl(title) {
   const slug = encodeURIComponent(title.replace(/ /g, '_'));
   return `https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`;
+}
+
+function buildParseLeadUrl(title) {
+  const slug = encodeURIComponent(title.replace(/ /g, '_'));
+  return `https://en.wikipedia.org/w/api.php?action=parse&page=${slug}&prop=text&section=0&format=json&redirects=1`;
+}
+
+function buildExtractUrl(title, maxChars) {
+  const slug = encodeURIComponent(title.replace(/ /g, '_'));
+  return `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&exchars=${maxChars}&titles=${slug}&format=json&redirects=1`;
+}
+
+function buildDescriptionUrl(title) {
+  const slug = encodeURIComponent(title.replace(/ /g, '_'));
+  return `https://en.wikipedia.org/w/api.php?action=query&prop=description&titles=${slug}&format=json&redirects=1`;
+}
+
+function decodeHtmlEntities(value) {
+  return value
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
+function extractLeadParagraphs(html) {
+  if (!html) {
+    return [];
+  }
+  const paragraphs = [];
+  const regex = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+  let match;
+  while ((match = regex.exec(html))) {
+    const raw = match[1]
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\[\d+]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const cleaned = decodeHtmlEntities(raw);
+    if (cleaned) {
+      paragraphs.push(cleaned);
+    }
+  }
+  return paragraphs;
+}
+
+function sanitizeSummary(text) {
+  if (!text) {
+    return '';
+  }
+  return text
+    .replace(/\[\d+]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildSummaryFromParagraphs(paragraphs) {
+  if (!paragraphs.length) {
+    return '';
+  }
+  const picked = [];
+  let total = 0;
+  for (const paragraph of paragraphs.slice(0, WIKIPEDIA_MAX_PARAGRAPHS)) {
+    const nextTotal = total + paragraph.length + (picked.length ? 2 : 0);
+    if (nextTotal > WIKIPEDIA_MAX_SUMMARY_CHARS && total >= WIKIPEDIA_MIN_SUMMARY_CHARS) {
+      break;
+    }
+    picked.push(paragraph);
+    total = nextTotal;
+  }
+  return picked.join('\n\n');
 }
 
 function resolveOverride(folderName, overrideValue, taxonomy) {
@@ -378,7 +457,7 @@ async function fetchWikidata(ebirdPayload) {
   };
 }
 
-async function fetchWikipedia(birdFolders) {
+async function fetchWikipedia(birdFolders, ebirdPayload) {
   const existing = readJson(WIKIPEDIA_PATH, { species: {} });
   const existingSpecies = existing.species || {};
   let reusedCount = 0;
@@ -408,6 +487,82 @@ async function fetchWikipedia(birdFolders) {
   const overrides = readJson(WIKIPEDIA_OVERRIDES_PATH, {});
   const species = {};
 
+  const resolveWikipediaEntry = async (title, label) => {
+    let summarySource = 'rest';
+    let summaryText = '';
+    const payload = await requestJson(buildSummaryUrl(title), {
+      'User-Agent': 'birdopedia/1.0 (local script)',
+      Accept: 'application/json'
+    });
+    if (payload.type === 'disambiguation') {
+      return { kind: 'disambiguation' };
+    }
+    if (!payload.extract) {
+      return { kind: 'missing' };
+    }
+    summaryText = String(payload.extract || '').trim();
+    if (summaryText.length < WIKIPEDIA_MIN_SUMMARY_CHARS) {
+      const leadPayload = await requestJson(buildParseLeadUrl(title), {
+        'User-Agent': 'birdopedia/1.0 (local script)',
+        Accept: 'application/json'
+      });
+      const leadHtml = leadPayload.parse?.text?.['*'] || '';
+      const leadParagraphs = extractLeadParagraphs(leadHtml);
+      const leadSummary = buildSummaryFromParagraphs(leadParagraphs);
+      if (leadSummary && leadSummary.length > summaryText.length) {
+        summaryText = leadSummary;
+        summarySource = 'lead';
+      }
+    }
+    if (summaryText.length < WIKIPEDIA_MIN_SUMMARY_CHARS) {
+      const extractPayload = await requestJson(buildExtractUrl(title, 1200), {
+        'User-Agent': 'birdopedia/1.0 (local script)',
+        Accept: 'application/json'
+      });
+      const pages = extractPayload.query?.pages || {};
+      const page = Object.values(pages)[0];
+      const extractText = page && page.extract ? String(page.extract).trim() : '';
+      if (extractText && extractText.length > summaryText.length) {
+        summaryText = extractText;
+        summarySource = 'extracts';
+      }
+    }
+
+    summaryText = sanitizeSummary(summaryText);
+
+    let description = '';
+    try {
+      const descriptionPayload = await requestJson(buildDescriptionUrl(title), {
+        'User-Agent': 'birdopedia/1.0 (local script)',
+        Accept: 'application/json'
+      });
+      const descriptionPages = descriptionPayload.query?.pages || {};
+      const descriptionPage = Object.values(descriptionPages)[0];
+      if (descriptionPage && descriptionPage.description) {
+        description = String(descriptionPage.description).trim();
+      }
+    } catch (error) {
+      console.warn(`Wikipedia: description fetch failed for ${label || title}.`);
+    }
+
+    const pageUrl =
+      (payload.content_urls && payload.content_urls.desktop && payload.content_urls.desktop.page) ||
+      (payload.content_urls && payload.content_urls.mobile && payload.content_urls.mobile.page) ||
+      '';
+
+    return {
+      kind: 'ok',
+      entry: {
+        title: payload.title || title,
+        summary: summaryText,
+        summarySource,
+        description,
+        url: pageUrl,
+        timestamp: payload.timestamp || ''
+      }
+    };
+  };
+
   for (const folderName of birdFolders) {
     if (!HARD_REFRESH && existingSpecies[folderName]) {
       species[folderName] = existingSpecies[folderName];
@@ -420,28 +575,26 @@ async function fetchWikipedia(birdFolders) {
     fetchedCount += 1;
 
     try {
-      const payload = await requestJson(buildSummaryUrl(title), {
-        'User-Agent': 'birdopedia/1.0 (local script)',
-        Accept: 'application/json'
-      });
-      if (payload.type === 'disambiguation') {
+      const primaryResult = await resolveWikipediaEntry(title, folderName);
+      if (primaryResult.kind === 'ok') {
+        species[folderName] = primaryResult.entry;
+        continue;
+      }
+
+      const scientificName = ebirdPayload?.species?.[folderName]?.scientificName;
+      if (scientificName && scientificName !== title) {
+        const scientificResult = await resolveWikipediaEntry(scientificName, folderName);
+        if (scientificResult.kind === 'ok') {
+          species[folderName] = scientificResult.entry;
+          continue;
+        }
+      }
+
+      if (primaryResult.kind === 'disambiguation') {
         console.warn(`Wikipedia: disambiguation page for ${folderName}.`);
-        continue;
-      }
-      if (!payload.extract) {
+      } else {
         console.warn(`Wikipedia: no summary extract for ${folderName}.`);
-        continue;
       }
-      const pageUrl =
-        (payload.content_urls && payload.content_urls.desktop && payload.content_urls.desktop.page) ||
-        (payload.content_urls && payload.content_urls.mobile && payload.content_urls.mobile.page) ||
-        '';
-      species[folderName] = {
-        title: payload.title || title,
-        summary: payload.extract,
-        url: pageUrl,
-        timestamp: payload.timestamp || ''
-      };
     } catch (error) {
       console.warn(`Wikipedia request failed for ${folderName}: ${error.message || error}`);
     }
@@ -500,7 +653,7 @@ async function main() {
   }
 
   const birdFolders = listBirdFolders();
-  const wikipediaResult = await fetchWikipedia(birdFolders);
+  const wikipediaResult = await fetchWikipedia(birdFolders, ebirdPayload);
   const wikipediaPayload = wikipediaResult.payload;
   const shouldWriteWikipedia =
     HARD_REFRESH || wikipediaResult.fetchedCount > 0 || !fs.existsSync(WIKIPEDIA_PATH);
