@@ -463,6 +463,33 @@ a {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
 }
 
+.preview-modal__nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-deep);
+  font-size: 2rem;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+.preview-modal__nav[data-preview-dir="prev"] {
+  left: 1.5rem;
+}
+
+.preview-modal__nav[data-preview-dir="next"] {
+  right: 1.5rem;
+}
+
+.preview-modal__nav[hidden] {
+  display: none;
+}
+
 body.preview-open {
   overflow: hidden;
 }

@@ -631,7 +631,9 @@ function renderBirdPage(bird, ebirdInfo) {
 
     <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
       <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
+      ${bird.images.length > 1 ? '<button class="preview-modal__nav" type="button" data-preview-dir="prev" aria-label="Previous photo">‹</button>' : ''}
       <img class="preview-modal__image" alt="" />
+      ${bird.images.length > 1 ? '<button class="preview-modal__nav" type="button" data-preview-dir="next" aria-label="Next photo">›</button>' : ''}
     </div>
 
     <footer class="site-footer">

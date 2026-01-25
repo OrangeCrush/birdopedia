@@ -56,16 +56,32 @@
   const preview = document.querySelector('[data-preview]');
   const previewImage = preview ? preview.querySelector('.preview-modal__image') : null;
   const closeButton = preview ? preview.querySelector('[data-preview-close]') : null;
+  const previewPrev = preview ? preview.querySelector('[data-preview-dir="prev"]') : null;
+  const previewNext = preview ? preview.querySelector('[data-preview-dir="next"]') : null;
+  let previewState = null;
 
-  const openPreview = (img) => {
-    if (!preview || !previewImage || !img) {
+  const setPreviewImage = (img) => {
+    if (!previewImage || !img) {
       return;
     }
     previewImage.src = img.currentSrc || img.src;
     previewImage.alt = img.alt || 'Photo preview';
+  };
+
+  const openPreview = (img, state) => {
+    if (!preview || !previewImage || !img) {
+      return;
+    }
+    previewState = state || null;
+    setPreviewImage(img);
     preview.classList.add('is-active');
     preview.setAttribute('aria-hidden', 'false');
     document.body.classList.add('preview-open');
+    if (previewPrev && previewNext) {
+      const hideNav = !previewState || previewState.count <= 1;
+      previewPrev.toggleAttribute('hidden', hideNav);
+      previewNext.toggleAttribute('hidden', hideNav);
+    }
   };
 
   const closePreview = () => {
@@ -76,6 +92,26 @@
     preview.setAttribute('aria-hidden', 'true');
     previewImage.removeAttribute('src');
     document.body.classList.remove('preview-open');
+    previewState = null;
+  };
+
+  const stepPreview = (dir) => {
+    if (!previewState) {
+      return;
+    }
+    if (previewState.count <= 1) {
+      return;
+    }
+    const { getActive, update } = previewState;
+    const active = getActive();
+    if (!active) {
+      return;
+    }
+    update(dir === 'next' ? active.index + 1 : active.index - 1);
+    const refreshed = getActive();
+    if (refreshed?.img) {
+      setPreviewImage(refreshed.img);
+    }
   };
 
   if (preview) {
@@ -89,10 +125,28 @@
   if (closeButton) {
     closeButton.addEventListener('click', closePreview);
   }
+  if (previewPrev) {
+    previewPrev.addEventListener('click', () => stepPreview('prev'));
+  }
+  if (previewNext) {
+    previewNext.addEventListener('click', () => stepPreview('next'));
+  }
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && preview?.classList.contains('is-active')) {
+    if (!preview?.classList.contains('is-active')) {
+      return;
+    }
+    if (event.key === 'Escape') {
       closePreview();
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      stepPreview('prev');
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      stepPreview('next');
     }
   });
 
@@ -143,6 +197,7 @@
     };
 
     setMeta(images[index]);
+    const getActive = () => ({ img: images[index], index });
 
     carousel.addEventListener('click', (event) => {
       const target = event.target;
@@ -172,7 +227,7 @@
         }
         const active = images[index];
         if (active) {
-          openPreview(active);
+          openPreview(active, { getActive, update, count: images.length });
         }
       });
     }
