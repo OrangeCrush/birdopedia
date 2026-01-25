@@ -683,11 +683,15 @@ body.preview-open {
 .image-card dd {
   margin: 0.1rem 0 0 0;
   color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .meta-link {
   color: var(--accent-deep);
   font-weight: 600;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .meta-link--download {
