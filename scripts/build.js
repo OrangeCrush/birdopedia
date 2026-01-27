@@ -345,10 +345,14 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
   const listing = birds
     .map((bird) => {
       const href = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
+      const latestAttr = bird.latestIso ? ` data-latest-capture="${bird.latestIso}"` : '';
       return `
-        <li class="bird-card">
+        <li class="bird-card"${latestAttr}>
           <a class="bird-card__link" href="${href}">
-            <span class="bird-card__name">${bird.name}</span>
+            <span class="bird-card__name">
+              ${bird.name}
+              <span class="bird-card__badge" aria-hidden="true">New</span>
+            </span>
             <span class="bird-card__meta">${bird.count} photo${bird.count === 1 ? '' : 's'} • ${bird.latest || 'Unknown date'}</span>
           </a>
         </li>`;
@@ -793,8 +797,10 @@ async function build() {
 
     const gpsCount = images.filter((image) => image.gps).length;
 
-    const earliest = dates[0] ? formatDisplayDate(dates[0]) : null;
-    const latest = dates[dates.length - 1] ? formatDisplayDate(dates[dates.length - 1]) : null;
+    const earliestDate = dates[0] || null;
+    const latestDate = dates[dates.length - 1] || null;
+    const earliest = earliestDate ? formatDisplayDate(earliestDate) : null;
+    const latest = latestDate ? formatDisplayDate(latestDate) : null;
 
     return {
       name: birdName,
@@ -802,6 +808,8 @@ async function build() {
       count: images.length,
       earliest,
       latest,
+      latestDate,
+      latestIso: latestDate ? latestDate.toISOString() : null,
       locationCount: gpsCount
     };
   }));
@@ -832,13 +840,7 @@ async function build() {
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
-  const newSpeciesCount = populatedBirds.filter((bird) => {
-    if (!bird.latest) {
-      return false;
-    }
-    const latestDate = new Date(bird.latest);
-    return !Number.isNaN(latestDate.getTime()) && latestDate >= cutoff;
-  }).length;
+  const newSpeciesCount = populatedBirds.filter((bird) => bird.latestDate && bird.latestDate >= cutoff).length;
 
   const collectionStats = {
     totalSpecies: populatedBirds.length,
@@ -854,7 +856,8 @@ async function build() {
   const birdSummaries = populatedBirds.map((bird) => ({
     name: bird.name,
     count: bird.count,
-    latest: bird.latest
+    latest: bird.latest,
+    latestIso: bird.latestIso
   }));
 
   const featuredImages = populatedBirds.length

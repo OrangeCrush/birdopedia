@@ -21,6 +21,32 @@
     });
   };
 
+  const markRecentShots = (root = document) => {
+    const cards = Array.from(root.querySelectorAll('.bird-card[data-latest-capture]'));
+    if (!cards.length) {
+      return;
+    }
+    const now = new Date();
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    cards.forEach((card) => {
+      const raw = card.getAttribute('data-latest-capture');
+      if (!raw) {
+        return;
+      }
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
+      if (date >= cutoff) {
+        card.classList.add('is-recent');
+      }
+    });
+  };
+
+  markRecentShots();
+
   const dataNode = document.getElementById('featured-data');
   if (!dataNode) {
     return;
