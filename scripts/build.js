@@ -75,7 +75,19 @@ function avifTargetPath(imagePath) {
   return `${base}.avif`;
 }
 
-async function ensureAvifVariant(imagePath, progress) {
+function needsAvifVariant(imagePath) {
+  const target = avifTargetPath(imagePath);
+  if (!target) {
+    return false;
+  }
+  if (!fs.existsSync(target)) {
+    return true;
+  }
+  const targetStat = fs.statSync(target);
+  return targetStat.size === 0;
+}
+
+async function ensureAvifVariant(imagePath) {
   const target = avifTargetPath(imagePath);
   if (!target) {
     return false;
@@ -96,8 +108,6 @@ async function ensureAvifVariant(imagePath, progress) {
     if (outputStat.size === 0) {
       console.warn(`AVIF: generated zero-byte file for ${path.basename(target)}`);
     }
-    const prefix = progress ? `AVIF ${progress.current}/${progress.total}` : 'AVIF';
-    console.log(`${prefix}: generated ${path.basename(target)}`);
     return true;
   } catch (error) {
     console.warn(`AVIF: failed to generate for ${imagePath}.`, error.message || error);
@@ -727,7 +737,10 @@ async function build() {
       .map((filename) => path.join(IMG_DIR, birdName, filename))
       .filter((imagePath) => avifTargetPath(imagePath))
   );
-  const avifTotal = avifCandidates.length;
+  const avifPending = avifCandidates.filter((imagePath) => needsAvifVariant(imagePath));
+  const avifTotal = avifPending.length;
+  const avifPendingSet = new Set(avifPending);
+  console.log(`building ${avifTotal} avif file${avifTotal === 1 ? '' : 's'}`);
   let avifCreated = 0;
   let avifIndex = 0;
   const birds = await Promise.all(allBirds.map(async (birdName) => {
@@ -743,11 +756,19 @@ async function build() {
       if (!avifTargetPath(imagePath)) {
         continue;
       }
+      if (!avifPendingSet.has(imagePath)) {
+        continue;
+      }
       avifIndex += 1;
       birdAvifCandidates += 1;
-      if (await ensureAvifVariant(imagePath, { current: avifIndex, total: avifTotal })) {
+      const targetPath = avifTargetPath(imagePath);
+      console.log(`${avifIndex}/${avifTotal} started building ${path.basename(imagePath)}`);
+      if (await ensureAvifVariant(imagePath)) {
         avifCreated += 1;
         birdAvifUpdated += 1;
+        if (targetPath) {
+          console.log(`${avifIndex}/${avifTotal} finished building ${path.basename(targetPath)}`);
+        }
       }
     }
     const images = await Promise.all(imageFiles.map((filename) => collectImageMetadata(birdName, filename)));
