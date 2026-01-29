@@ -9,7 +9,6 @@ const EBIRD_PATH = path.join(DATA_DIR, 'ebird.json');
 const WIKIDATA_PATH = path.join(DATA_DIR, 'wikidata.json');
 const WIKIPEDIA_PATH = path.join(DATA_DIR, 'wikipedia.json');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'ebird.overrides.json');
-const WIKIPEDIA_OVERRIDES_PATH = path.join(DATA_DIR, 'wikipedia.overrides.json');
 const ENV_PATH = path.join(ROOT, '.env');
 const HARD_REFRESH = process.argv.includes('--hard');
 const WIKIPEDIA_MIN_SUMMARY_CHARS = 420;
@@ -55,11 +54,6 @@ function ensureOverridesFile() {
   }
 }
 
-function ensureWikipediaOverridesFile() {
-  if (!fs.existsSync(WIKIPEDIA_OVERRIDES_PATH)) {
-    fs.writeFileSync(WIKIPEDIA_OVERRIDES_PATH, JSON.stringify({}, null, 2));
-  }
-}
 
 function listBirdFolders() {
   if (!fs.existsSync(IMG_DIR)) {
@@ -484,7 +478,6 @@ async function fetchWikipedia(birdFolders, ebirdPayload) {
     };
   }
 
-  const overrides = readJson(WIKIPEDIA_OVERRIDES_PATH, {});
   const species = {};
 
   const resolveWikipediaEntry = async (title, label) => {
@@ -570,27 +563,32 @@ async function fetchWikipedia(birdFolders, ebirdPayload) {
       continue;
     }
 
-    const title = overrides[folderName] || folderName;
     console.log(`Wikipedia: fetching ${folderName}...`);
     fetchedCount += 1;
 
     try {
-      const primaryResult = await resolveWikipediaEntry(title, folderName);
-      if (primaryResult.kind === 'ok') {
-        species[folderName] = primaryResult.entry;
+      const scientificName = ebirdPayload?.species?.[folderName]?.scientificName;
+      let result = null;
+
+      if (scientificName) {
+        const scientificResult = await resolveWikipediaEntry(scientificName, folderName);
+        if (scientificResult.kind === 'ok') {
+          result = scientificResult;
+        } else if (scientificResult.kind === 'disambiguation' || scientificResult.kind === 'missing') {
+          result = await resolveWikipediaEntry(folderName, folderName);
+        } else {
+          result = scientificResult;
+        }
+      } else {
+        result = await resolveWikipediaEntry(folderName, folderName);
+      }
+
+      if (result && result.kind === 'ok') {
+        species[folderName] = result.entry;
         continue;
       }
 
-      const scientificName = ebirdPayload?.species?.[folderName]?.scientificName;
-      if (scientificName && scientificName !== title) {
-        const scientificResult = await resolveWikipediaEntry(scientificName, folderName);
-        if (scientificResult.kind === 'ok') {
-          species[folderName] = scientificResult.entry;
-          continue;
-        }
-      }
-
-      if (primaryResult.kind === 'disambiguation') {
+      if (result && result.kind === 'disambiguation') {
         console.warn(`Wikipedia: disambiguation page for ${folderName}.`);
       } else {
         console.warn(`Wikipedia: no summary extract for ${folderName}.`);
@@ -618,8 +616,6 @@ async function fetchWikipedia(birdFolders, ebirdPayload) {
 async function main() {
   ensureDir(DATA_DIR);
   ensureOverridesFile();
-  ensureWikipediaOverridesFile();
-
   if (HARD_REFRESH) {
     console.log('Running in --hard mode: refreshing all species data.');
   }
