@@ -591,13 +591,12 @@ function renderBirdPage(bird, ebirdInfo) {
         .join('')
     : '';
 
-  const descriptionText = wikipediaInfo.description || '';
-  const showDescription = descriptionText && !/^species of bird/i.test(descriptionText.trim());
+  const summaryLabel = String(config.speciesSummaryLabel || 'Species notes').trim();
 
   const summaryBlock = summaryParagraphs
     ? `
       <div class="profile-summary">
-        ${showDescription ? `<p class="summary-lede">${descriptionText}</p>` : ''}
+        ${summaryLabel ? `<p class="summary-lede">${summaryLabel}</p>` : ''}
         ${summaryParagraphs}
       </div>`
     : '';
