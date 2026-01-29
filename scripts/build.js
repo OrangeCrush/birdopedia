@@ -422,6 +422,10 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
             <span class="stat__value">${collectionStats.latest || 'Unknown'}</span>
           </div>
           <div class="stat">
+            <span class="stat__label">Newest species</span>
+            <span class="stat__value">${collectionStats.newestSpecies || 'Unknown'}</span>
+          </div>
+          <div class="stat">
             <span class="stat__label">Most photographed species</span>
             <span class="stat__value">${collectionStats.topSpecies || 'Unknown'}</span>
           </div>
@@ -806,6 +810,7 @@ async function build() {
       images,
       count: images.length,
       earliest,
+      earliestDate,
       latest,
       latestDate,
       latestIso: latestDate ? latestDate.toISOString() : null,
@@ -837,6 +842,13 @@ async function build() {
   const topSpecies = populatedBirds.slice().sort((a, b) => b.count - a.count)[0];
   const topSpeciesLabel = topSpecies ? `${topSpecies.name} (${topSpecies.count})` : null;
 
+  const newestSpecies = populatedBirds
+    .filter((bird) => bird.earliestDate)
+    .sort((a, b) => b.earliestDate - a.earliestDate)[0];
+  const newestSpeciesLabel = newestSpecies
+    ? `${newestSpecies.name} (${formatDisplayDate(newestSpecies.earliestDate)})`
+    : null;
+
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
   const newSpeciesCount = populatedBirds.filter((bird) => bird.latestDate && bird.latestDate >= cutoff).length;
@@ -847,6 +859,7 @@ async function build() {
     earliest: allDates[0] ? formatDisplayDate(allDates[0]) : null,
     latest: allDates[allDates.length - 1] ? formatDisplayDate(allDates[allDates.length - 1]) : null,
     topSpecies: topSpeciesLabel,
+    newestSpecies: newestSpeciesLabel,
     newSpeciesCount,
     daysInField: uniqueDays.size,
     topMonth: topMonthLabel
