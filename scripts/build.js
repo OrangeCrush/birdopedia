@@ -341,7 +341,7 @@ function renderLayout({ title, description, bodyClass, content, extraHead = '', 
 </html>`;
 }
 
-function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
+function renderIndex(birds, collectionStats, featuredImage, featuredImages, recentCaptures) {
   const listing = birds
     .map((bird) => {
       const href = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
@@ -382,6 +382,31 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
         /</g,
         '\\u003c'
       )}</script>`
+    : '';
+  const recentSection = recentCaptures?.length
+    ? `
+      <section class="recent-captures">
+        <div class="section-title">
+          <h2>Recent captures</h2>
+          <p>Newest photos added to the archive.</p>
+        </div>
+        <div class="recent-captures__grid">
+          ${recentCaptures
+            .map((capture) => {
+              return `
+              <a class="recent-captures__card" href="${capture.speciesHref}">
+                <div class="recent-captures__thumb media-frame">
+                  <img class="media-image media-fade" src="/${capture.src}" alt="${capture.bird} recent capture" loading="lazy" decoding="async" />
+                </div>
+                <div class="recent-captures__meta">
+                  <span>${capture.bird}</span>
+                  <span>${capture.captureDate || 'Unknown date'}</span>
+                </div>
+              </a>`;
+            })
+            .join('')}
+        </div>
+      </section>`
     : '';
 
   const content = `
@@ -442,6 +467,7 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages) {
             <span class="stat__value">${collectionStats.daysInField}</span>
           </div>
         </div>
+        ${recentSection}
         ${featuredData}
       </aside>
       <section class="collection">
@@ -884,7 +910,26 @@ async function build() {
       })
     : [];
 
-  const indexHtml = renderIndex(birdSummaries, collectionStats, null, featuredImages);
+  const recentCaptures = populatedBirds
+    .map((bird) => {
+      const latestImage = bird.images.find((image) => image.captureDateIso);
+      if (!latestImage) {
+        return null;
+      }
+      const speciesHref = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
+      return {
+        bird: bird.name,
+        src: latestImage.src,
+        captureDate: latestImage.captureDate,
+        captureDateIso: latestImage.captureDateIso,
+        speciesHref
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.captureDateIso) - new Date(a.captureDateIso))
+    .slice(0, 6);
+
+  const indexHtml = renderIndex(birdSummaries, collectionStats, null, featuredImages, recentCaptures);
   fs.writeFileSync(path.join(SITE_DIR, 'index.html'), indexHtml);
   fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), indexHtml);
 

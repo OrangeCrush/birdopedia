@@ -46,6 +46,7 @@
   };
 
   markRecentShots();
+  applyImageLoadingEffects();
 
   const dataNode = document.getElementById('featured-data');
   if (!dataNode) {
