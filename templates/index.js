@@ -55,6 +55,7 @@
       const emptyState = document.querySelector('.search-empty');
       const countNode = document.getElementById('search-count');
       const familySelect = document.getElementById('family-filter');
+      const statusSelect = document.getElementById('status-filter');
       const clearButton = document.querySelector('.search-clear');
       const total = cards.length;
 
@@ -62,6 +63,7 @@
       const updateSearch = () => {
         const query = normalize(searchInput.value);
         const family = normalize(familySelect ? familySelect.value : '');
+        const status = normalize(statusSelect ? statusSelect.value : '');
         let visible = 0;
 
         cards.forEach((card) => {
@@ -69,7 +71,9 @@
           const matchesName = !query || normalize(name).includes(query);
           const cardFamily = normalize(card.dataset.family || '');
           const matchesFamily = !family || cardFamily === family;
-          const match = matchesName && matchesFamily;
+          const cardStatus = normalize(card.dataset.status || '');
+          const matchesStatus = !status || cardStatus === status;
+          const match = matchesName && matchesFamily && matchesStatus;
           card.hidden = !match;
           if (match) {
             visible += 1;
@@ -90,6 +94,9 @@
       searchInput.addEventListener('input', updateSearch);
       if (familySelect) {
         familySelect.addEventListener('change', updateSearch);
+      }
+      if (statusSelect) {
+        statusSelect.addEventListener('change', updateSearch);
       }
       if (clearButton) {
         clearButton.addEventListener('click', () => {

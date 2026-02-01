@@ -220,6 +220,34 @@ a {
   outline-offset: 2px;
 }
 
+.status-field {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  min-width: 200px;
+}
+
+.status-field select {
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid rgba(32, 26, 19, 0.15);
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 18px rgba(32, 26, 19, 0.08);
+}
+
+.status-field select:focus {
+  outline: 2px solid rgba(197, 107, 44, 0.35);
+  outline-offset: 2px;
+}
+
 .search-field input:focus {
   outline: 2px solid rgba(197, 107, 44, 0.35);
   outline-offset: 2px;

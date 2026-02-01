@@ -354,15 +354,24 @@ function escapeHtml(value) {
     .replace(/</g, '&lt;');
 }
 
-function renderIndex(birds, collectionStats, featuredImage, featuredImages, recentCaptures, families = []) {
+function renderIndex(
+  birds,
+  collectionStats,
+  featuredImage,
+  featuredImages,
+  recentCaptures,
+  families = [],
+  statuses = []
+) {
   const listing = birds
     .map((bird) => {
       const href = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
       const latestAttr = bird.latestIso ? ` data-latest-capture="${bird.latestIso}"` : '';
       const nameAttr = ` data-name="${escapeAttr(bird.name.toLowerCase())}"`;
       const familyAttr = ` data-family="${escapeAttr((bird.family || '').toLowerCase())}"`;
+      const statusAttr = ` data-status="${escapeAttr((bird.status || '').toLowerCase())}"`;
       return `
-        <li class="bird-card"${latestAttr}${nameAttr}${familyAttr}>
+        <li class="bird-card"${latestAttr}${nameAttr}${familyAttr}${statusAttr}>
           <a class="bird-card__link" href="${href}">
             <span class="bird-card__name">
               ${bird.name}
@@ -506,6 +515,13 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages, rece
             <select id="family-filter">
               <option value="">All families</option>
               ${families.map((family) => `<option value="${escapeAttr(family.toLowerCase())}">${escapeHtml(family)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="status-field" for="status-filter">
+            <span>Conservation status</span>
+            <select id="status-filter">
+              <option value="">All statuses</option>
+              ${statuses.map((status) => `<option value="${escapeAttr(status.toLowerCase())}">${escapeHtml(status)}</option>`).join('')}
             </select>
           </label>
           <div class="search-meta">
@@ -937,7 +953,8 @@ async function build() {
     count: bird.count,
     latest: bird.latest,
     latestIso: bird.latestIso,
-    family: ebird.species?.[bird.name]?.family || null
+    family: ebird.species?.[bird.name]?.family || null,
+    status: ebird.species?.[bird.name]?.status || wikidata.species?.[bird.name]?.conservationStatus || null
   }));
 
   const featuredImages = populatedBirds.length
@@ -974,7 +991,18 @@ async function build() {
   const families = Array.from(new Set(birdSummaries.map((bird) => bird.family).filter(Boolean))).sort((a, b) =>
     a.localeCompare(b, 'en', { sensitivity: 'base' })
   );
-  const indexHtml = renderIndex(birdSummaries, collectionStats, null, featuredImages, recentCaptures, families);
+  const statuses = Array.from(new Set(birdSummaries.map((bird) => bird.status).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, 'en', { sensitivity: 'base' })
+  );
+  const indexHtml = renderIndex(
+    birdSummaries,
+    collectionStats,
+    null,
+    featuredImages,
+    recentCaptures,
+    families,
+    statuses
+  );
   fs.writeFileSync(path.join(SITE_DIR, 'index.html'), indexHtml);
   fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), indexHtml);
 
