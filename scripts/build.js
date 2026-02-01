@@ -370,8 +370,9 @@ function renderIndex(
       const nameAttr = ` data-name="${escapeAttr(bird.name.toLowerCase())}"`;
       const familyAttr = ` data-family="${escapeAttr((bird.family || '').toLowerCase())}"`;
       const statusAttr = ` data-status="${escapeAttr((bird.status || '').toLowerCase())}"`;
+      const countAttr = ` data-count="${bird.count}"`;
       return `
-        <li class="bird-card"${latestAttr}${nameAttr}${familyAttr}${statusAttr}>
+        <li class="bird-card"${latestAttr}${nameAttr}${familyAttr}${statusAttr}${countAttr}>
           <a class="bird-card__link" href="${href}">
             <span class="bird-card__name">
               ${bird.name}
@@ -522,6 +523,14 @@ function renderIndex(
             <select id="status-filter">
               <option value="">All statuses</option>
               ${statuses.map((status) => `<option value="${escapeAttr(status.toLowerCase())}">${escapeHtml(status)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="sort-field" for="sort-filter">
+            <span>Sort</span>
+            <select id="sort-filter">
+              <option value="name" selected>A–Z</option>
+              <option value="count">Photo count</option>
+              <option value="latest">Latest capture</option>
             </select>
           </label>
           <div class="search-meta">

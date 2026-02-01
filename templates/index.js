@@ -50,21 +50,26 @@
 
   const searchInput = document.getElementById('species-search');
   if (searchInput) {
+    const list = document.querySelector('.bird-list');
     const cards = Array.from(document.querySelectorAll('.bird-card'));
-    if (cards.length) {
+    if (cards.length && list) {
       const emptyState = document.querySelector('.search-empty');
       const countNode = document.getElementById('search-count');
       const familySelect = document.getElementById('family-filter');
       const statusSelect = document.getElementById('status-filter');
+      const sortSelect = document.getElementById('sort-filter');
       const clearButton = document.querySelector('.search-clear');
       const total = cards.length;
+      const originalOrder = cards.slice();
 
       const normalize = (value) => String(value).toLowerCase().trim();
       const updateSearch = () => {
         const query = normalize(searchInput.value);
         const family = normalize(familySelect ? familySelect.value : '');
         const status = normalize(statusSelect ? statusSelect.value : '');
+        const sort = normalize(sortSelect ? sortSelect.value : 'name') || 'name';
         let visible = 0;
+        const visibleCards = [];
 
         cards.forEach((card) => {
           const name = card.dataset.name || '';
@@ -77,8 +82,32 @@
           card.hidden = !match;
           if (match) {
             visible += 1;
+            visibleCards.push(card);
           }
         });
+
+        if (sort === 'name') {
+          originalOrder.forEach((card) => {
+            if (!card.hidden) {
+              list.appendChild(card);
+            }
+          });
+        } else {
+          const sorted = visibleCards.slice().sort((a, b) => {
+            if (sort === 'count') {
+              const countA = Number(a.dataset.count || 0);
+              const countB = Number(b.dataset.count || 0);
+              return countB - countA;
+            }
+            if (sort === 'latest') {
+              const dateA = a.dataset.latestCapture ? new Date(a.dataset.latestCapture).getTime() : 0;
+              const dateB = b.dataset.latestCapture ? new Date(b.dataset.latestCapture).getTime() : 0;
+              return dateB - dateA;
+            }
+            return 0;
+          });
+          sorted.forEach((card) => list.appendChild(card));
+        }
 
         if (countNode) {
           countNode.textContent = query ? `${visible} of ${total} species` : `${total} species`;
@@ -98,9 +127,21 @@
       if (statusSelect) {
         statusSelect.addEventListener('change', updateSearch);
       }
+      if (sortSelect) {
+        sortSelect.addEventListener('change', updateSearch);
+      }
       if (clearButton) {
         clearButton.addEventListener('click', () => {
           searchInput.value = '';
+          if (familySelect) {
+            familySelect.value = '';
+          }
+          if (statusSelect) {
+            statusSelect.value = '';
+          }
+          if (sortSelect) {
+            sortSelect.value = 'name';
+          }
           searchInput.focus();
           updateSearch();
         });
