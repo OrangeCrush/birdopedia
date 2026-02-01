@@ -233,5 +233,41 @@
     }
   });
 
+  const detailGrid = document.querySelector('.image-details .image-grid');
+  if (preview && detailGrid) {
+    const detailImages = Array.from(detailGrid.querySelectorAll('.image-card__thumb img'));
+    let detailIndex = 0;
+
+    const updateDetail = (nextIndex) => {
+      if (!detailImages.length) {
+        return;
+      }
+      detailIndex = (nextIndex + detailImages.length) % detailImages.length;
+    };
+
+    const getDetailActive = () => ({ img: detailImages[detailIndex], index: detailIndex });
+
+    detailGrid.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      const thumb = target.closest('.image-card__thumb');
+      if (!thumb) {
+        return;
+      }
+      const img = thumb.querySelector('img');
+      if (!img) {
+        return;
+      }
+      const clickedIndex = detailImages.indexOf(img);
+      if (clickedIndex === -1) {
+        return;
+      }
+      updateDetail(clickedIndex);
+      openPreview(img, { getActive: getDetailActive, update: updateDetail, count: detailImages.length });
+    });
+  }
+
   applyImageLoadingEffects();
 })();

@@ -272,6 +272,42 @@ a {
   background: linear-gradient(140deg, rgba(24, 20, 14, 0.75), rgba(70, 62, 48, 0.45));
 }
 
+.zoomable {
+  position: relative;
+  cursor: zoom-in;
+}
+
+.zoom-indicator {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: rgba(15, 12, 8, 0.6);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: translateY(6px) scale(0.92);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.zoom-indicator::before {
+  content: "";
+  width: 1.1rem;
+  height: 1.1rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='16.65' y1='16.65' x2='21' y2='21'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+
+.zoomable:hover .zoom-indicator,
+.zoomable:focus-within .zoom-indicator {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
 .media-frame::before {
   content: "";
   position: absolute;

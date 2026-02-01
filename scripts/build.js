@@ -548,7 +548,7 @@ function renderBirdPage(bird, ebirdInfo) {
 
       return `
         <article class="image-card">
-          <div class="image-card__thumb media-frame">
+          <div class="image-card__thumb media-frame zoomable">
             <img
               class="media-image media-fade"
               src="/${image.src}"
@@ -556,6 +556,7 @@ function renderBirdPage(bird, ebirdInfo) {
               loading="lazy"
               decoding="async"
             />
+            <span class="zoom-indicator" aria-hidden="true"></span>
           </div>
           <div class="image-card__body">
             <dl>
@@ -683,8 +684,9 @@ function renderBirdPage(bird, ebirdInfo) {
       <div class="bird-hero__media">
         <div class="carousel" data-count="${bird.images.length}">
           ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="prev" aria-label="Previous image">‹</button>' : ''}
-          <div class="carousel__viewport media-frame">
+          <div class="carousel__viewport media-frame zoomable">
             ${carouselImages}
+            <span class="zoom-indicator" aria-hidden="true"></span>
           </div>
           ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="next" aria-label="Next image">›</button>' : ''}
           ${dots ? `<div class="carousel__dots">${dots}</div>` : ''}
