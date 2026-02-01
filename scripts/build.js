@@ -341,13 +341,28 @@ function renderLayout({ title, description, bodyClass, content, extraHead = '', 
 </html>`;
 }
 
-function renderIndex(birds, collectionStats, featuredImage, featuredImages, recentCaptures) {
+function escapeAttr(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;');
+}
+
+function renderIndex(birds, collectionStats, featuredImage, featuredImages, recentCaptures, families = []) {
   const listing = birds
     .map((bird) => {
       const href = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
       const latestAttr = bird.latestIso ? ` data-latest-capture="${bird.latestIso}"` : '';
+      const nameAttr = ` data-name="${escapeAttr(bird.name.toLowerCase())}"`;
+      const familyAttr = ` data-family="${escapeAttr((bird.family || '').toLowerCase())}"`;
       return `
-        <li class="bird-card"${latestAttr}>
+        <li class="bird-card"${latestAttr}${nameAttr}${familyAttr}>
           <a class="bird-card__link" href="${href}">
             <span class="bird-card__name">
               ${bird.name}
@@ -475,6 +490,30 @@ function renderIndex(birds, collectionStats, featuredImage, featuredImages, rece
           <h2>Species Index</h2>
           <p>Alphabetical listings of every photographed species.</p>
         </div>
+        <div class="collection-toolbar">
+          <label class="search-field" for="species-search">
+            <span>Search species</span>
+            <input
+              id="species-search"
+              type="search"
+              placeholder="Type a bird name"
+              autocomplete="off"
+              aria-describedby="search-count"
+            />
+          </label>
+          <label class="family-field" for="family-filter">
+            <span>Family</span>
+            <select id="family-filter">
+              <option value="">All families</option>
+              ${families.map((family) => `<option value="${escapeAttr(family.toLowerCase())}">${escapeHtml(family)}</option>`).join('')}
+            </select>
+          </label>
+          <div class="search-meta">
+            <span id="search-count">${collectionStats.totalSpecies} species</span>
+            <button class="search-clear" type="button" hidden>Clear</button>
+          </div>
+        </div>
+        <p class="search-empty" hidden>No species match that search yet.</p>
         <ol class="bird-list">
           ${listing}
         </ol>
@@ -897,7 +936,8 @@ async function build() {
     name: bird.name,
     count: bird.count,
     latest: bird.latest,
-    latestIso: bird.latestIso
+    latestIso: bird.latestIso,
+    family: ebird.species?.[bird.name]?.family || null
   }));
 
   const featuredImages = populatedBirds.length
@@ -931,7 +971,10 @@ async function build() {
     .sort((a, b) => new Date(b.captureDateIso) - new Date(a.captureDateIso))
     .slice(0, 6);
 
-  const indexHtml = renderIndex(birdSummaries, collectionStats, null, featuredImages, recentCaptures);
+  const families = Array.from(new Set(birdSummaries.map((bird) => bird.family).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, 'en', { sensitivity: 'base' })
+  );
+  const indexHtml = renderIndex(birdSummaries, collectionStats, null, featuredImages, recentCaptures, families);
   fs.writeFileSync(path.join(SITE_DIR, 'index.html'), indexHtml);
   fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), indexHtml);
 

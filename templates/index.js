@@ -48,6 +48,60 @@
   markRecentShots();
   applyImageLoadingEffects();
 
+  const searchInput = document.getElementById('species-search');
+  if (searchInput) {
+    const cards = Array.from(document.querySelectorAll('.bird-card'));
+    if (cards.length) {
+      const emptyState = document.querySelector('.search-empty');
+      const countNode = document.getElementById('search-count');
+      const familySelect = document.getElementById('family-filter');
+      const clearButton = document.querySelector('.search-clear');
+      const total = cards.length;
+
+      const normalize = (value) => String(value).toLowerCase().trim();
+      const updateSearch = () => {
+        const query = normalize(searchInput.value);
+        const family = normalize(familySelect ? familySelect.value : '');
+        let visible = 0;
+
+        cards.forEach((card) => {
+          const name = card.dataset.name || '';
+          const matchesName = !query || normalize(name).includes(query);
+          const cardFamily = normalize(card.dataset.family || '');
+          const matchesFamily = !family || cardFamily === family;
+          const match = matchesName && matchesFamily;
+          card.hidden = !match;
+          if (match) {
+            visible += 1;
+          }
+        });
+
+        if (countNode) {
+          countNode.textContent = query ? `${visible} of ${total} species` : `${total} species`;
+        }
+        if (emptyState) {
+          emptyState.hidden = visible !== 0;
+        }
+        if (clearButton) {
+          clearButton.hidden = !query;
+        }
+      };
+
+      searchInput.addEventListener('input', updateSearch);
+      if (familySelect) {
+        familySelect.addEventListener('change', updateSearch);
+      }
+      if (clearButton) {
+        clearButton.addEventListener('click', () => {
+          searchInput.value = '';
+          searchInput.focus();
+          updateSearch();
+        });
+      }
+      updateSearch();
+    }
+  }
+
   const dataNode = document.getElementById('featured-data');
   if (!dataNode) {
     return;
