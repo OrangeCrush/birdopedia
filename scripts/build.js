@@ -600,6 +600,8 @@ function renderBirdPage(bird, ebirdInfo) {
           alt="${bird.name} photograph ${index + 1}"
           loading="${index === 0 ? 'eager' : 'lazy'}"
           decoding="async"
+          data-filename="${escapeAttr(image.filename)}"
+          data-has-gps="${image.gps ? 'true' : 'false'}"
           data-caption-date="${image.captureDateIso || ''}"
           data-caption-camera="${image.camera}"
           data-caption-lens="${image.lens}"
@@ -758,7 +760,7 @@ function renderBirdPage(bird, ebirdInfo) {
       <div class="bird-hero__summary">
         <div class="page-nav">
           <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
-          <a class="map-link" href="/birdopedia/map/index.html">View field map</a>
+          ${bird.locationCount > 0 ? `<a class="map-link" data-map-link data-species="${escapeAttr(bird.name)}" href="/birdopedia/map/index.html?species=${encodeURIComponent(bird.name)}&focus=latest">View field map</a>` : ''}
         </div>
         <p class="eyebrow">${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'}</p>
         <h1>${bird.name}</h1>
@@ -1185,6 +1187,7 @@ async function build() {
         bird: bird.name,
         speciesHref,
         src: image.src,
+        filename: image.filename,
         captureDate: image.captureDate,
         captureDateIso: image.captureDateIso,
         camera: image.camera,

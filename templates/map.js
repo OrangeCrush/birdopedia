@@ -50,6 +50,10 @@
   const searchInput = document.getElementById('map-search');
   const speciesSelect = document.getElementById('map-species');
   const focusSelect = document.getElementById('map-toggle-latest');
+  const params = new URLSearchParams(window.location.search);
+  const requestedSpecies = params.get('species');
+  const requestedFocus = params.get('focus');
+  const requestedImage = params.get('image');
 
   const palette = [
     '#c56b2c',
@@ -204,6 +208,7 @@
     if (points.length) {
       updateSpotlight(points[0]);
     }
+    return points;
   };
 
   if (searchInput) {
@@ -233,6 +238,38 @@
     });
   });
 
-  applyFilters();
+  if (requestedSpecies && speciesSelect) {
+    speciesSelect.value = requestedSpecies.trim().toLowerCase();
+  }
+  if (focusSelect) {
+    if (requestedImage) {
+      focusSelect.value = 'all';
+    } else if (requestedFocus) {
+      focusSelect.value = requestedFocus;
+    }
+  }
+  const initialPoints = applyFilters();
+  if (initialPoints.length) {
+    let target = null;
+    if (requestedImage) {
+      target = initialPoints.find((point) => point.filename === requestedImage) || null;
+    }
+    if (!target && requestedSpecies) {
+      const normalized = requestedSpecies.trim().toLowerCase();
+      const matching = initialPoints.filter((point) => point.bird.toLowerCase() === normalized);
+      target =
+        matching
+          .slice()
+          .sort((a, b) => {
+            const dateA = a.captureDateIso ? new Date(a.captureDateIso).getTime() : 0;
+            const dateB = b.captureDateIso ? new Date(b.captureDateIso).getTime() : 0;
+            return dateB - dateA;
+          })[0] || matching[0] || null;
+    }
+    if (target) {
+      map.flyTo([target.lat, target.lon], 11, { duration: 0.8 });
+      updateSpotlight(target);
+    }
+  }
   applyImageLoadingEffects();
 })();

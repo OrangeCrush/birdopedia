@@ -156,6 +156,7 @@
     const viewport = carousel.querySelector('.carousel__viewport');
     const caption = carousel.querySelector('[data-caption]');
     const metaContainer = carousel.querySelector('[data-carousel-meta]');
+    const mapLink = document.querySelector('[data-map-link]');
     let index = 0;
 
     const setMeta = (img) => {
@@ -194,6 +195,22 @@
         caption.textContent = parts.join(' • ');
       }
       setMeta(images[index]);
+      if (mapLink) {
+        const species = mapLink.dataset.species || '';
+        const filename = images[index].dataset.filename || '';
+        const hasGps = images[index].dataset.hasGps === 'true';
+        const params = new URLSearchParams();
+        if (species) {
+          params.set('species', species);
+        }
+        if (hasGps && filename) {
+          params.set('focus', 'all');
+          params.set('image', filename);
+        } else {
+          params.set('focus', 'latest');
+        }
+        mapLink.href = `/birdopedia/map/index.html?${params.toString()}`;
+      }
     };
 
     setMeta(images[index]);
