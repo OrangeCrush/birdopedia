@@ -11,6 +11,7 @@ const TEMPLATES_DIR = path.join(ROOT, 'templates');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
 const EBIRD_PATH = path.join(ROOT, 'data', 'ebird.json');
 const WIKIPEDIA_PATH = path.join(ROOT, 'data', 'wikipedia.json');
+const GEOCODE_PATH = path.join(ROOT, 'data', 'geocode.json');
 
 function readJson(filePath, fallback) {
   try {
@@ -37,6 +38,11 @@ const wikipedia = readJson(WIKIPEDIA_PATH, {
     license: 'CC BY-SA 4.0',
     licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/'
   }
+});
+const geocodeCache = readJson(GEOCODE_PATH, {
+  points: {},
+  source: { name: 'Nominatim', url: 'https://nominatim.openstreetmap.org/' },
+  updatedAt: null
 });
 
 function toWebPath(...parts) {
@@ -193,6 +199,13 @@ function exifToIso(dateValue, offsetValue) {
   return base;
 }
 
+function geocodeKey(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+}
+
 function formatExposure(value) {
   if (!Number.isFinite(value)) {
     return 'Unknown';
@@ -225,6 +238,8 @@ function formatGps(lat, lon) {
   const fixedLat = lat.toFixed(6);
   const fixedLon = lon.toFixed(6);
   return {
+    lat,
+    lon,
     display: `${fixedLat}, ${fixedLon}`,
     link: `https://www.openstreetmap.org/?mlat=${fixedLat}&mlon=${fixedLon}#map=12/${fixedLat}/${fixedLon}`
   };
@@ -441,8 +456,11 @@ function renderIndex(
         <h1>Birdopedia</h1>
         <p class="lede">${bio}</p>
         <div class="hero-meta">
-          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''}</span>
+          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''} • <a class="meta-link" href="/birdopedia/map/index.html">Field map</a></span>
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
+        </div>
+        <div class="hero-actions">
+          <a class="btn" href="/birdopedia/map/index.html">Explore the field map</a>
         </div>
       </div>
     </header>
@@ -738,7 +756,10 @@ function renderBirdPage(bird, ebirdInfo) {
   const content = `
     <header class="bird-hero">
       <div class="bird-hero__summary">
-        <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
+        <div class="page-nav">
+          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
+          <a class="map-link" href="/birdopedia/map/index.html">View field map</a>
+        </div>
         <p class="eyebrow">${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'}</p>
         <h1>${bird.name}</h1>
         <p class="lede">${profile.scientificName || 'Species profile pending.'}</p>
@@ -809,6 +830,137 @@ function renderBirdPage(bird, ebirdInfo) {
   });
 }
 
+function renderMapPage(mapPayload, mapStats, speciesList = []) {
+  const speciesOptions = speciesList
+    .map((birdName) => `<option value="${escapeAttr(birdName.toLowerCase())}">${escapeHtml(birdName)}</option>`)
+    .join('');
+
+  const recentList = mapPayload.recent?.length
+    ? mapPayload.recent
+        .map((capture) => {
+          return `
+            <button class="map-recent__item" type="button" data-point="${capture.pointId}">
+              <span>${capture.bird}</span>
+              <span>${capture.captureDate || 'Unknown date'}</span>
+            </button>`;
+        })
+        .join('')
+    : '<p class="empty-note">No geotagged captures yet.</p>';
+
+  const content = `
+    <header class="map-hero">
+      <div class="map-hero__content">
+        <p class="eyebrow">Field Atlas</p>
+        <h1>Flight Map</h1>
+        <p class="lede">Trace each capture across the landscape, with every geotagged frame pinned to the places you’ve explored.</p>
+        <p class="map-note">Built from GPS metadata embedded in each photo.</p>
+        <div class="hero-meta">
+          <span>${mapStats.totalGeoPhotos} geotagged photo${mapStats.totalGeoPhotos === 1 ? '' : 's'} • ${mapStats.totalGeoSpecies} species mapped</span>
+          <span>${mapStats.earliest || 'Unknown'} → ${mapStats.latest || 'Unknown'}</span>
+        </div>
+        <div class="hero-actions">
+          <a class="btn" href="/birdopedia/index.html">Browse the species index</a>
+        </div>
+      </div>
+      <div class="site-hero__stats">
+        <div class="section-title">
+          <h2>Map highlights</h2>
+          <p>Quick look at the geotagged archive.</p>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Mapped locations</span>
+          <span class="stat__value">${mapStats.mappedLocations}</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Top country</span>
+          <span class="stat__value">${mapStats.topCountry || 'Unknown'}</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Top city</span>
+          <span class="stat__value">${mapStats.topCity || 'Unknown'}</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Top state/region</span>
+          <span class="stat__value">${mapStats.topState || 'Unknown'}</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Most photographed species</span>
+          <span class="stat__value">${mapStats.topSpecies || 'Unknown'}</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">Distinct days mapped</span>
+          <span class="stat__value">${mapStats.daysMapped}</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="map-main">
+      <section class="map-panel">
+        <div class="map-toolbar">
+          <label class="search-field" for="map-search">
+            <span>Search species</span>
+            <input id="map-search" type="search" placeholder="Type a bird name" autocomplete="off" />
+          </label>
+          <label class="family-field" for="map-species">
+            <span>Species</span>
+            <select id="map-species">
+              <option value="">All species</option>
+              ${speciesOptions}
+            </select>
+          </label>
+          <label class="status-field" for="map-toggle-latest">
+            <span>Focus</span>
+            <select id="map-toggle-latest">
+              <option value="all" selected>All captures</option>
+              <option value="latest">Latest per species</option>
+            </select>
+          </label>
+        </div>
+        <div id="field-map" class="field-map" role="region" aria-label="Map of bird photograph locations"></div>
+        <p class="map-attribution">Tiles © OpenStreetMap contributors</p>
+      </section>
+      <aside class="map-sidebar">
+        <section class="map-spotlight" data-spotlight>
+          <p class="eyebrow">Capture spotlight</p>
+          <div class="map-spotlight__media media-frame">
+            <img class="media-image media-fade" src="" alt="" loading="lazy" decoding="async" />
+          </div>
+          <div class="map-spotlight__info">
+            <h2></h2>
+            <p class="map-spotlight__date"></p>
+            <p class="map-spotlight__meta"></p>
+            <a class="meta-link" href="#">Open species page →</a>
+          </div>
+        </section>
+        <section class="map-recent">
+          <div class="section-title">
+            <h2>Recent map drops</h2>
+            <p>Latest geotagged sightings.</p>
+          </div>
+          <div class="map-recent__list">
+            ${recentList}
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="site-footer">
+      <span>Built by ${config.authorName || 'the photographer'} • ${mapStats.totalGeoPhotos} geotagged captures across the archive.</span>
+    </footer>
+
+    <script type="application/json" id="map-data">${JSON.stringify(mapPayload).replace(/</g, '\\u003c')}</script>`;
+
+  return renderLayout({
+    title: 'Field Map',
+    description: 'Explore bird photography locations on an interactive map.',
+    bodyClass: 'page-map',
+    content,
+    extraHead: '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />',
+    extraScripts:
+      '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="/birdopedia/map.js"></script>'
+  });
+}
+
 async function build() {
   if (!fs.existsSync(PUBLIC_DIR)) {
     fs.mkdirSync(PUBLIC_DIR, { recursive: true });
@@ -820,6 +972,7 @@ async function build() {
   const stylesSource = path.join(TEMPLATES_DIR, 'styles.css');
   const scriptSource = path.join(TEMPLATES_DIR, 'bird.js');
   const indexScriptSource = path.join(TEMPLATES_DIR, 'index.js');
+  const mapScriptSource = path.join(TEMPLATES_DIR, 'map.js');
   if (fs.existsSync(stylesSource)) {
     fs.copyFileSync(stylesSource, path.join(SITE_DIR, 'styles.css'));
   }
@@ -828,6 +981,9 @@ async function build() {
   }
   if (fs.existsSync(indexScriptSource)) {
     fs.copyFileSync(indexScriptSource, path.join(SITE_DIR, 'index.js'));
+  }
+  if (fs.existsSync(mapScriptSource)) {
+    fs.copyFileSync(mapScriptSource, path.join(SITE_DIR, 'map.js'));
   }
 
   const allBirds = listBirds();
@@ -1014,6 +1170,127 @@ async function build() {
   );
   fs.writeFileSync(path.join(SITE_DIR, 'index.html'), indexHtml);
   fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), indexHtml);
+
+  const mapPoints = [];
+  populatedBirds.forEach((bird) => {
+    const speciesHref = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
+    bird.images.forEach((image) => {
+      if (!image.gps) {
+        return;
+      }
+      const locationKey = geocodeKey(image.gps.lat, image.gps.lon);
+      const location = locationKey ? geocodeCache.points?.[locationKey] : null;
+      mapPoints.push({
+        id: mapPoints.length,
+        bird: bird.name,
+        speciesHref,
+        src: image.src,
+        captureDate: image.captureDate,
+        captureDateIso: image.captureDateIso,
+        camera: image.camera,
+        lens: image.lens,
+        aperture: image.aperture,
+        exposure: image.exposure,
+        iso: image.iso,
+        family: ebird.species?.[bird.name]?.family || null,
+        status: ebird.species?.[bird.name]?.status || wikidata.species?.[bird.name]?.conservationStatus || null,
+        locationLabel: location?.label || null,
+        city: location?.city || null,
+        state: location?.state || null,
+        country: location?.country || null,
+        lat: image.gps.lat,
+        lon: image.gps.lon
+      });
+    });
+  });
+
+  const geoSpeciesSet = new Set(mapPoints.map((point) => point.bird));
+  const geoDates = mapPoints
+    .map((point) => normalizeExifDate(point.captureDateIso))
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+  const geoDays = new Set(geoDates.map((date) => date.toISOString().slice(0, 10)));
+  const mappedLocations = new Set(mapPoints.map((point) => `${point.lat.toFixed(3)}, ${point.lon.toFixed(3)}`));
+  const geoTopSpecies = mapPoints.reduce((acc, point) => {
+    acc[point.bird] = (acc[point.bird] || 0) + 1;
+    return acc;
+  }, {});
+  const geoTopEntry = Object.entries(geoTopSpecies).sort((a, b) => b[1] - a[1])[0];
+  const geoTopLabel = geoTopEntry ? `${geoTopEntry[0]} (${geoTopEntry[1]})` : null;
+  const locationCounts = (field) =>
+    mapPoints.reduce((acc, point) => {
+      const value = point[field];
+      if (!value) {
+        return acc;
+      }
+      acc[value] = (acc[value] || 0) + 1;
+      return acc;
+    }, {});
+  const topEntry = (entries) => Object.entries(entries).sort((a, b) => b[1] - a[1])[0] || null;
+  const topCountryEntry = topEntry(locationCounts('country'));
+  const topStateEntry = topEntry(locationCounts('state'));
+  const topCityEntry = topEntry(locationCounts('city'));
+  const topCountryLabel = topCountryEntry ? `${topCountryEntry[0]} (${topCountryEntry[1]})` : null;
+  const topStateLabel = topStateEntry ? `${topStateEntry[0]} (${topStateEntry[1]})` : null;
+  const topCityLabel = topCityEntry ? `${topCityEntry[0]} (${topCityEntry[1]})` : null;
+
+  const mapStats = {
+    totalGeoPhotos: mapPoints.length,
+    totalGeoSpecies: geoSpeciesSet.size,
+    earliest: geoDates[0] ? formatDisplayDate(geoDates[0]) : null,
+    latest: geoDates[geoDates.length - 1] ? formatDisplayDate(geoDates[geoDates.length - 1]) : null,
+    daysMapped: geoDays.size,
+    mappedLocations: mappedLocations.size,
+    topSpecies: geoTopLabel,
+    topCountry: topCountryLabel,
+    topState: topStateLabel,
+    topCity: topCityLabel
+  };
+
+  const recentGeoCaptures = mapPoints
+    .filter((point) => point.captureDateIso)
+    .sort((a, b) => new Date(b.captureDateIso) - new Date(a.captureDateIso))
+    .slice(0, 6)
+    .map((point) => ({
+      pointId: point.id,
+      bird: point.bird,
+      captureDate: point.captureDate
+    }));
+
+  const bounds = mapPoints.length
+    ? mapPoints.reduce(
+        (acc, point) => {
+          acc.minLat = Math.min(acc.minLat, point.lat);
+          acc.maxLat = Math.max(acc.maxLat, point.lat);
+          acc.minLon = Math.min(acc.minLon, point.lon);
+          acc.maxLon = Math.max(acc.maxLon, point.lon);
+          return acc;
+        },
+        {
+          minLat: mapPoints[0].lat,
+          maxLat: mapPoints[0].lat,
+          minLon: mapPoints[0].lon,
+          maxLon: mapPoints[0].lon
+        }
+      )
+    : null;
+
+  const mapPayload = {
+    points: mapPoints,
+    recent: recentGeoCaptures,
+    bounds
+  };
+
+  const mapHtml = renderMapPage(
+    mapPayload,
+    mapStats,
+    Array.from(geoSpeciesSet).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
+  );
+  const mapDir = path.join(SITE_DIR, 'map');
+  if (!fs.existsSync(mapDir)) {
+    fs.mkdirSync(mapDir, { recursive: true });
+  }
+  fs.writeFileSync(path.join(mapDir, 'index.html'), mapHtml);
 
   populatedBirds.forEach((bird) => {
     const ebirdInfo = ebird.species?.[bird.name];

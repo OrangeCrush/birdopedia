@@ -51,6 +51,35 @@ a {
   text-decoration: none;
 }
 
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem 1.6rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  box-shadow: 0 14px 26px rgba(197, 107, 44, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 34px rgba(197, 107, 44, 0.3);
+}
+
+.hero-actions {
+  margin-top: 1.5rem;
+}
+
+.map-note {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -397,8 +426,20 @@ a {
 
 .back-link {
   display: inline-block;
-  margin-bottom: 1.2rem;
   color: var(--accent-deep);
+  font-weight: 600;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+  flex-wrap: wrap;
+}
+
+.map-link {
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -1049,9 +1090,183 @@ body.preview-open {
 }
 
 .site-hero,
+.map-hero,
 .bird-hero,
+.map-main,
 .collection,
 .bird-profile,
 .image-details {
   animation: fadeUp 0.6s ease both;
+}
+
+.page-map .site-footer {
+  margin-top: 3rem;
+}
+
+.map-hero {
+  display: grid;
+  gap: 2.5rem;
+  padding: 4rem clamp(1.5rem, 4vw, 4rem) 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.map-main {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  gap: 2rem;
+  padding: 0 clamp(1.5rem, 4vw, 4rem) 4rem;
+}
+
+.map-panel {
+  background: rgba(255, 255, 255, 0.75);
+  padding: 2rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.map-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.map-toolbar + .field-map {
+  margin-top: 0;
+}
+
+.map-toolbar .search-field,
+.map-toolbar .family-field,
+.map-toolbar .status-field {
+  align-self: start;
+  align-content: start;
+}
+
+.field-map {
+  width: 100%;
+  min-height: 420px;
+  height: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(32, 26, 19, 0.12);
+}
+
+.map-attribution {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.map-sidebar {
+  display: grid;
+  gap: 2rem;
+}
+
+.map-spotlight {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 1.75rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 1.2rem;
+}
+
+.map-spotlight__media {
+  aspect-ratio: 4 / 3;
+}
+
+.map-spotlight__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.map-spotlight__info h2 {
+  margin: 0.3rem 0;
+}
+
+.map-spotlight__date {
+  color: var(--muted);
+  margin: 0 0 0.6rem 0;
+}
+
+.map-spotlight__meta {
+  margin: 0 0 0.8rem 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.map-recent {
+  background: rgba(255, 255, 255, 0.75);
+  padding: 1.75rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 1.25rem;
+}
+
+.map-recent__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.map-recent__item {
+  background: #fff;
+  border: 1px solid rgba(32, 26, 19, 0.12);
+  border-radius: 14px;
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.map-recent__item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(32, 26, 19, 0.12);
+}
+
+.map-popup img {
+  width: 100%;
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.map-popup__meta {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.map-popup__meta a {
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+@media (max-width: 980px) {
+  .map-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .map-hero {
+    padding-bottom: 2rem;
+  }
+  .map-panel {
+    padding: 1.5rem;
+  }
+  .map-spotlight,
+  .map-recent,
+  .map-hero__stats {
+    padding: 1.5rem;
+  }
 }

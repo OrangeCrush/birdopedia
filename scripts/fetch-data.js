@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const exifr = require('exifr');
 
 const ROOT = path.resolve(__dirname, '..');
 const IMG_DIR = path.join(ROOT, 'public', 'img');
@@ -8,12 +9,16 @@ const DATA_DIR = path.join(ROOT, 'data');
 const EBIRD_PATH = path.join(DATA_DIR, 'ebird.json');
 const WIKIDATA_PATH = path.join(DATA_DIR, 'wikidata.json');
 const WIKIPEDIA_PATH = path.join(DATA_DIR, 'wikipedia.json');
+const GEOCODE_PATH = path.join(DATA_DIR, 'geocode.json');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'ebird.overrides.json');
 const ENV_PATH = path.join(ROOT, '.env');
 const HARD_REFRESH = process.argv.includes('--hard');
 const WIKIPEDIA_MIN_SUMMARY_CHARS = 420;
 const WIKIPEDIA_MAX_SUMMARY_CHARS = 1200;
 const WIKIPEDIA_MAX_PARAGRAPHS = 5;
+const CONFIG_PATH = path.join(ROOT, 'config.json');
+
+const config = readJson(CONFIG_PATH, { authorName: 'Photographer' });
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -64,6 +69,106 @@ function listBirdFolders() {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
+}
+
+function listImages(birdDir) {
+  const fullPath = path.join(IMG_DIR, birdDir);
+  if (!fs.existsSync(fullPath)) {
+    return [];
+  }
+  return fs
+    .readdirSync(fullPath, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => /\.(jpe?g|png|webp)$/i.test(name))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function geocodeKey(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+}
+
+function formatLocation(address = {}) {
+  const city =
+    address.city ||
+    address.town ||
+    address.village ||
+    address.hamlet ||
+    address.county ||
+    null;
+  const state =
+    address.state ||
+    address.region ||
+    address.province ||
+    address.state_district ||
+    null;
+  const country = address.country || null;
+  const parts = [city, state, country].filter(Boolean);
+  return {
+    city,
+    state,
+    country,
+    label: parts.join(', ')
+  };
+}
+
+async function reverseGeocode(lat, lon, email, cache) {
+  const key = geocodeKey(lat, lon);
+  if (!key) {
+    return 'failed';
+  }
+  if (cache.points?.[key]) {
+    return 'cached';
+  }
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    lat: String(lat),
+    lon: String(lon),
+    zoom: '14',
+    addressdetails: '1'
+  });
+  if (email) {
+    params.set('email', email);
+  }
+  const url = `https://nominatim.openstreetmap.org/reverse?${params.toString()}`;
+  const headers = {
+    'User-Agent': `Birdopedia/${config.authorName || 'Photographer'}`
+  };
+  try {
+    const payload = await requestJson(url, headers);
+    const location = formatLocation(payload.address || {});
+    const entry = {
+      key,
+      lat,
+      lon,
+      label: location.label,
+      city: location.city,
+      state: location.state,
+      country: location.country
+    };
+    cache.points[key] = entry;
+    cache.updatedAt = new Date().toISOString();
+    return 'fetched';
+  } catch (error) {
+    console.warn(`Geocode: failed for ${key}.`, error.message || error);
+    return 'failed';
+  }
 }
 
 function normalizeName(value) {
@@ -613,6 +718,60 @@ async function fetchWikipedia(birdFolders, ebirdPayload) {
   };
 }
 
+async function fetchGeocodes(birdFolders, email) {
+  const cache = readJson(GEOCODE_PATH, {
+    points: {},
+    source: { name: 'Nominatim', url: 'https://nominatim.openstreetmap.org/' },
+    updatedAt: null
+  });
+  cache.points = cache.points || {};
+  cache.source = cache.source || { name: 'Nominatim', url: 'https://nominatim.openstreetmap.org/' };
+
+  const targets = new Map();
+  for (const folderName of birdFolders) {
+    const imageFiles = listImages(folderName);
+    for (const filename of imageFiles) {
+      const imagePath = path.join(IMG_DIR, folderName, filename);
+      let exif = {};
+      try {
+        exif = await exifr.parse(imagePath, { gps: true });
+      } catch (error) {
+        console.warn(`Geocode: failed to read GPS for ${path.join(folderName, filename)}.`);
+        continue;
+      }
+      const lat = firstNumber(exif?.GPSLatitude, exif?.latitude);
+      const lon = firstNumber(exif?.GPSLongitude, exif?.longitude);
+      const key = geocodeKey(lat, lon);
+      if (key && !targets.has(key)) {
+        targets.set(key, { lat, lon });
+      }
+    }
+  }
+
+  const missingKeys = Array.from(targets.keys()).filter((key) => !cache.points[key]);
+  let fetchedCount = 0;
+  let reusedCount = Object.keys(cache.points).length;
+  if (missingKeys.length) {
+    console.log(`Geocode: resolving ${missingKeys.length} location${missingKeys.length === 1 ? '' : 's'}.`);
+    for (let index = 0; index < missingKeys.length; index += 1) {
+      const key = missingKeys[index];
+      const target = targets.get(key);
+      if (!target) {
+        continue;
+      }
+      const result = await reverseGeocode(target.lat, target.lon, email, cache);
+      if (result === 'fetched') {
+        fetchedCount += 1;
+        if (index < missingKeys.length - 1) {
+          await sleep(1100);
+        }
+      }
+    }
+  }
+
+  return { cache, fetchedCount, reusedCount };
+}
+
 async function main() {
   ensureDir(DATA_DIR);
   ensureOverridesFile();
@@ -622,6 +781,7 @@ async function main() {
 
   const env = readEnvFile(ENV_PATH);
   const token = process.env.EBIRD_API_TOKEN || env.EBIRD_API_TOKEN;
+  const geocodeEmail = process.env.GEOCODE_EMAIL || env.GEOCODE_EMAIL;
 
   const ebirdResult = await fetchEbirdSpecies(token);
   const ebirdPayload = ebirdResult.payload;
@@ -660,6 +820,18 @@ async function main() {
     );
   } else {
     console.log(`No Wikipedia updates; reused ${wikipediaResult.reusedCount} cached species.`);
+  }
+
+  const geocodeResult = await fetchGeocodes(birdFolders, geocodeEmail);
+  const shouldWriteGeocode =
+    HARD_REFRESH || geocodeResult.fetchedCount > 0 || !fs.existsSync(GEOCODE_PATH);
+  if (shouldWriteGeocode) {
+    fs.writeFileSync(GEOCODE_PATH, JSON.stringify(geocodeResult.cache, null, 2));
+    console.log(
+      `Wrote ${Object.keys(geocodeResult.cache.points || {}).length} geocoded location(s) (fetched ${geocodeResult.fetchedCount}, reused ${geocodeResult.reusedCount}).`
+    );
+  } else {
+    console.log(`No geocode updates; reused ${geocodeResult.reusedCount} cached locations.`);
   }
 }
 

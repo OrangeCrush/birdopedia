@@ -21,5 +21,6 @@ Project layout:
 The project contains a directory, public/img.  This directory will contain other directories that contain the common name of a bird species.  Inside this folder are pictures of that given species, along with their generated HTML file.
 
 Do not make changes under public/
+After making website changes, run a build
 
 All data should be fetched in the same script to build the page
