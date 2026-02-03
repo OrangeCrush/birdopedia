@@ -135,6 +135,15 @@ function formatBytes(bytes) {
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+function isThreeTwo(width, height, tolerance = 0.02) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || height === 0) {
+    return true;
+  }
+  const ratio = width / height;
+  const target = 3 / 2;
+  return Math.abs(ratio - target) <= tolerance;
+}
+
 function normalizeExifDate(value) {
   if (!value) {
     return null;
@@ -310,6 +319,10 @@ async function collectImageMetadata(birdName, filename) {
     exif.PixelYDimension,
     exif.Height
   );
+  if (Number.isFinite(width) && Number.isFinite(height) && !isThreeTwo(width, height)) {
+    const ratio = (width / height).toFixed(2);
+    console.warn(`Aspect ratio: ${path.join(birdName, filename)} is ${width}x${height} (${ratio}:1), not 3:2.`);
+  }
   const megapixelsRaw = Number.isFinite(exif.Megapixels)
     ? exif.Megapixels
     : width && height
@@ -456,7 +469,7 @@ function renderIndex(
         <h1>Birdopedia</h1>
         <p class="lede">${bio}</p>
         <div class="hero-meta">
-          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''} • <a class="meta-link" href="/birdopedia/map/index.html">Field map</a></span>
+          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''} • <a class="meta-link" href="/birdopedia/map/index.html">Field map</a> • <a class="meta-link" href="/birdopedia/gallery/index.html">Gallery</a></span>
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
         <div class="hero-actions">
@@ -968,6 +981,45 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
   });
 }
 
+function renderGalleryPage() {
+  const content = `
+    <header class="gallery-hero">
+      <div class="gallery-hero__content">
+        <div class="page-nav">
+          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
+        </div>
+        <p class="eyebrow">Photo Archive</p>
+        <h1>Gallery</h1>
+        <p class="lede">An unbroken stream of field moments, curated for the images themselves.</p>
+      </div>
+    </header>
+
+    <main class="gallery-main">
+      <div class="gallery-toolbar">
+        <label class="sort-field" for="gallery-sort">
+          <span>Sort</span>
+          <select id="gallery-sort">
+            <option value="random" selected>Random</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="species">Species A–Z</option>
+          </select>
+        </label>
+      </div>
+      <div class="gallery-grid" data-gallery-grid></div>
+      <button class="gallery-load" type="button" data-gallery-load>Load more</button>
+    </main>
+  `;
+
+  return renderLayout({
+    title: 'Gallery',
+    description: 'A continuous gallery of bird photography.',
+    bodyClass: 'page-gallery',
+    content,
+    extraScripts: '<script src="/birdopedia/gallery.js"></script>'
+  });
+}
+
 async function build() {
   if (!fs.existsSync(PUBLIC_DIR)) {
     fs.mkdirSync(PUBLIC_DIR, { recursive: true });
@@ -980,6 +1032,7 @@ async function build() {
   const scriptSource = path.join(TEMPLATES_DIR, 'bird.js');
   const indexScriptSource = path.join(TEMPLATES_DIR, 'index.js');
   const mapScriptSource = path.join(TEMPLATES_DIR, 'map.js');
+  const galleryScriptSource = path.join(TEMPLATES_DIR, 'gallery.js');
   if (fs.existsSync(stylesSource)) {
     fs.copyFileSync(stylesSource, path.join(SITE_DIR, 'styles.css'));
   }
@@ -991,6 +1044,9 @@ async function build() {
   }
   if (fs.existsSync(mapScriptSource)) {
     fs.copyFileSync(mapScriptSource, path.join(SITE_DIR, 'map.js'));
+  }
+  if (fs.existsSync(galleryScriptSource)) {
+    fs.copyFileSync(galleryScriptSource, path.join(SITE_DIR, 'gallery.js'));
   }
 
   const allBirds = listBirds();
@@ -1299,6 +1355,36 @@ async function build() {
     fs.mkdirSync(mapDir, { recursive: true });
   }
   fs.writeFileSync(path.join(mapDir, 'index.html'), mapHtml);
+
+  const galleryItems = populatedBirds.flatMap((bird) => {
+    const speciesHref = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
+    return bird.images.map((image) => ({
+      id: `${bird.name}-${image.filename}`,
+      src: image.src,
+      bird: bird.name,
+      speciesHref,
+      captureDate: image.captureDate,
+      captureDateIso: image.captureDateIso
+    }));
+  });
+  galleryItems.sort((a, b) => {
+    const dateA = a.captureDateIso ? new Date(a.captureDateIso).getTime() : 0;
+    const dateB = b.captureDateIso ? new Date(b.captureDateIso).getTime() : 0;
+    if (dateA && dateB && dateA !== dateB) {
+      return dateB - dateA;
+    }
+    if (dateA !== dateB) {
+      return dateB - dateA;
+    }
+    return a.bird.localeCompare(b.bird);
+  });
+  fs.writeFileSync(path.join(SITE_DIR, 'gallery.json'), JSON.stringify(galleryItems, null, 2));
+  const galleryHtml = renderGalleryPage();
+  const galleryDir = path.join(SITE_DIR, 'gallery');
+  if (!fs.existsSync(galleryDir)) {
+    fs.mkdirSync(galleryDir, { recursive: true });
+  }
+  fs.writeFileSync(path.join(galleryDir, 'index.html'), galleryHtml);
 
   populatedBirds.forEach((bird) => {
     const ebirdInfo = ebird.species?.[bird.name];
