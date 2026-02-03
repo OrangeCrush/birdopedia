@@ -621,9 +621,18 @@ function renderBirdPage(bird, ebirdInfo) {
 
   const imageCards = bird.images
     .map((image, index) => {
-      const gpsSection = image.gps
-        ? `<a class="meta-link" href="${image.gps.link}" target="_blank" rel="noopener noreferrer">${image.gps.display}</a>`
-        : 'Unknown';
+      const locationKey = image.gps ? geocodeKey(image.gps.lat, image.gps.lon) : null;
+      const location = locationKey ? geocodeCache.points?.[locationKey] : null;
+      const locationLabel = [location?.city, location?.state].filter(Boolean).join(', ');
+      const mapLink =
+        image.gps
+          ? `/birdopedia/map/index.html?species=${encodeURIComponent(bird.name)}&focus=all&image=${encodeURIComponent(image.filename)}`
+          : '';
+      const gpsSection = image.gps && locationLabel
+        ? `<a class="meta-link" href="${mapLink}">${escapeHtml(locationLabel)}</a>`
+        : image.gps
+          ? `<a class="meta-link" href="${mapLink}">${image.gps.display}</a>`
+          : 'Unknown';
       const isJpeg = /\.(jpe?g)$/i.test(image.filename);
       const downloadLabel = isJpeg ? 'Full Size JPEG' : 'Download original';
       const downloadLink = image.originalSrc
