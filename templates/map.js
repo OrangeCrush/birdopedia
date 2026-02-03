@@ -47,7 +47,6 @@
   const spotlightMeta = spotlight ? spotlight.querySelector('.map-spotlight__meta') : null;
   const spotlightLink = spotlight ? spotlight.querySelector('a') : null;
 
-  const searchInput = document.getElementById('map-search');
   const speciesSelect = document.getElementById('map-species');
   const focusSelect = document.getElementById('map-toggle-latest');
   const params = new URLSearchParams(window.location.search);
@@ -158,7 +157,6 @@
   };
 
   const applyFilters = () => {
-    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
     const selected = speciesSelect ? speciesSelect.value.trim().toLowerCase() : '';
     const focus = focusSelect ? focusSelect.value : 'all';
 
@@ -181,9 +179,6 @@
       points = Array.from(latestBySpecies.values());
     }
 
-    if (query) {
-      points = points.filter((point) => point.bird.toLowerCase().includes(query));
-    }
     if (selected) {
       points = points.filter((point) => point.bird.toLowerCase() === selected);
     }
@@ -211,9 +206,6 @@
     return points;
   };
 
-  if (searchInput) {
-    searchInput.addEventListener('input', applyFilters);
-  }
   if (speciesSelect) {
     speciesSelect.addEventListener('change', applyFilters);
   }

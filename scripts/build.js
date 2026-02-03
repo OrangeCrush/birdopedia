@@ -899,10 +899,6 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
     <main class="map-main">
       <section class="map-panel">
         <div class="map-toolbar">
-          <label class="search-field" for="map-search">
-            <span>Search species</span>
-            <input id="map-search" type="search" placeholder="Type a bird name" autocomplete="off" />
-          </label>
           <label class="family-field" for="map-species">
             <span>Species</span>
             <select id="map-species">
