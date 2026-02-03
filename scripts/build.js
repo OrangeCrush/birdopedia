@@ -850,6 +850,9 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
   const content = `
     <header class="map-hero">
       <div class="map-hero__content">
+        <div class="page-nav">
+          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
+        </div>
         <p class="eyebrow">Field Atlas</p>
         <h1>Flight Map</h1>
         <p class="lede">Trace each capture across the landscape, with every geotagged frame pinned to the places you’ve explored.</p>
@@ -857,9 +860,6 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
         <div class="hero-meta">
           <span>${mapStats.totalGeoPhotos} geotagged photo${mapStats.totalGeoPhotos === 1 ? '' : 's'} • ${mapStats.totalGeoSpecies} species mapped</span>
           <span>${mapStats.earliest || 'Unknown'} → ${mapStats.latest || 'Unknown'}</span>
-        </div>
-        <div class="hero-actions">
-          <a class="btn" href="/birdopedia/index.html">Browse the species index</a>
         </div>
       </div>
       <div class="site-hero__stats">
