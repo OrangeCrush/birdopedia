@@ -81,8 +81,26 @@ function avifTargetPath(imagePath) {
   return `${base}.avif`;
 }
 
+function thumbTargetPath(imagePath) {
+  const ext = path.extname(imagePath).toLowerCase();
+  const base = imagePath.slice(0, -ext.length);
+  return `${base}.thumb.avif`;
+}
+
 function needsAvifVariant(imagePath) {
   const target = avifTargetPath(imagePath);
+  if (!target) {
+    return false;
+  }
+  if (!fs.existsSync(target)) {
+    return true;
+  }
+  const targetStat = fs.statSync(target);
+  return targetStat.size === 0;
+}
+
+function needsThumbVariant(imagePath) {
+  const target = thumbTargetPath(imagePath);
   if (!target) {
     return false;
   }
@@ -117,6 +135,35 @@ async function ensureAvifVariant(imagePath) {
     return true;
   } catch (error) {
     console.warn(`AVIF: failed to generate for ${imagePath}.`, error.message || error);
+    return false;
+  }
+}
+
+async function ensureThumbVariant(imagePath) {
+  const target = thumbTargetPath(imagePath);
+  if (!target) {
+    return false;
+  }
+  try {
+    if (fs.existsSync(target)) {
+      const targetStat = fs.statSync(target);
+      if (targetStat.size === 0) {
+        console.warn(`Thumb: zero-byte file found, regenerating ${path.basename(target)}`);
+      } else {
+        return false;
+      }
+    }
+    await sharp(imagePath)
+      .resize({ width: 720, withoutEnlargement: true })
+      .avif({ quality: 45, effort: 4 })
+      .toFile(target);
+    const outputStat = fs.statSync(target);
+    if (outputStat.size === 0) {
+      console.warn(`Thumb: generated zero-byte file for ${path.basename(target)}`);
+    }
+    return true;
+  } catch (error) {
+    console.warn(`Thumb: failed to generate for ${imagePath}.`, error.message || error);
     return false;
   }
 }
@@ -282,9 +329,11 @@ async function collectImageMetadata(birdName, filename) {
   const avifName = ext === '.jpg' || ext === '.jpeg'
     ? `${path.basename(filename, ext)}.avif`
     : null;
+  const thumbName = `${path.basename(filename, ext)}.thumb.avif`;
   const imageSrc = avifName
     ? toWebPath('img', birdName, avifName)
     : toWebPath('img', birdName, filename);
+  const thumbSrc = toWebPath('img', birdName, thumbName);
   const originalSrc = toWebPath('img', birdName, filename);
   const stat = fs.statSync(imagePath);
   const camera = [exif.Make, exif.Model].filter(Boolean).join(' ').trim();
@@ -332,6 +381,7 @@ async function collectImageMetadata(birdName, filename) {
   return {
     filename,
     src: imageSrc,
+    thumbSrc,
     originalSrc,
     width: width || 'Unknown',
     height: height || 'Unknown',
@@ -449,7 +499,7 @@ function renderIndex(
               return `
               <a class="recent-captures__card" href="${capture.speciesHref}">
                 <div class="recent-captures__thumb media-frame">
-                  <img class="media-image media-fade" src="/${capture.src}" alt="${capture.bird} recent capture" loading="lazy" decoding="async" />
+                  <img class="media-image media-fade" src="/${capture.thumbSrc || capture.src}" alt="${capture.bird} recent capture" loading="lazy" decoding="async" />
                 </div>
                 <div class="recent-captures__meta">
                   <span>${capture.bird}</span>
@@ -1055,12 +1105,21 @@ async function build() {
       .map((filename) => path.join(IMG_DIR, birdName, filename))
       .filter((imagePath) => avifTargetPath(imagePath))
   );
+  const thumbCandidates = allBirds.flatMap((birdName) =>
+    listImages(birdName).map((filename) => path.join(IMG_DIR, birdName, filename))
+  );
   const avifPending = avifCandidates.filter((imagePath) => needsAvifVariant(imagePath));
   const avifTotal = avifPending.length;
+  const thumbPending = thumbCandidates.filter((imagePath) => needsThumbVariant(imagePath));
+  const thumbTotal = thumbPending.length;
   const avifPendingSet = new Set(avifPending);
+  const thumbPendingSet = new Set(thumbPending);
   console.log(`building ${avifTotal} avif file${avifTotal === 1 ? '' : 's'}`);
+  console.log(`building ${thumbTotal} thumbnail file${thumbTotal === 1 ? '' : 's'}`);
   let avifCreated = 0;
+  let thumbCreated = 0;
   let avifIndex = 0;
+  let thumbIndex = 0;
   const birds = await Promise.all(allBirds.map(async (birdName) => {
     const imageFiles = listImages(birdName);
     if (imageFiles.length === 0) {
@@ -1072,20 +1131,29 @@ async function build() {
     for (const filename of imageFiles) {
       const imagePath = path.join(IMG_DIR, birdName, filename);
       if (!avifTargetPath(imagePath)) {
-        continue;
+        // Skip AVIF generation for non-JPEG files.
+      } else if (avifPendingSet.has(imagePath)) {
+        avifIndex += 1;
+        birdAvifCandidates += 1;
+        const targetPath = avifTargetPath(imagePath);
+        console.log(`${avifIndex}/${avifTotal} started building ${path.basename(imagePath)}`);
+        if (await ensureAvifVariant(imagePath)) {
+          avifCreated += 1;
+          birdAvifUpdated += 1;
+          if (targetPath) {
+            console.log(`${avifIndex}/${avifTotal} finished building ${path.basename(targetPath)}`);
+          }
+        }
       }
-      if (!avifPendingSet.has(imagePath)) {
-        continue;
-      }
-      avifIndex += 1;
-      birdAvifCandidates += 1;
-      const targetPath = avifTargetPath(imagePath);
-      console.log(`${avifIndex}/${avifTotal} started building ${path.basename(imagePath)}`);
-      if (await ensureAvifVariant(imagePath)) {
-        avifCreated += 1;
-        birdAvifUpdated += 1;
-        if (targetPath) {
-          console.log(`${avifIndex}/${avifTotal} finished building ${path.basename(targetPath)}`);
+      if (thumbPendingSet.has(imagePath)) {
+        thumbIndex += 1;
+        console.log(`${thumbIndex}/${thumbTotal} started building thumb for ${path.basename(imagePath)}`);
+        if (await ensureThumbVariant(imagePath)) {
+          thumbCreated += 1;
+          const thumbTarget = thumbTargetPath(imagePath);
+          if (thumbTarget) {
+            console.log(`${thumbIndex}/${thumbTotal} finished building ${path.basename(thumbTarget)}`);
+          }
         }
       }
     }
@@ -1191,6 +1259,7 @@ async function build() {
         return bird.images.map((image) => ({
           bird: bird.name,
           src: image.src,
+          thumbSrc: image.thumbSrc,
           captureDate: image.captureDate,
           speciesHref
         }));
@@ -1207,6 +1276,7 @@ async function build() {
       return {
         bird: bird.name,
         src: latestImage.src,
+        thumbSrc: latestImage.thumbSrc,
         captureDate: latestImage.captureDate,
         captureDateIso: latestImage.captureDateIso,
         speciesHref
@@ -1361,6 +1431,7 @@ async function build() {
     return bird.images.map((image) => ({
       id: `${bird.name}-${image.filename}`,
       src: image.src,
+      thumbSrc: image.thumbSrc,
       bird: bird.name,
       speciesHref,
       captureDate: image.captureDate,
@@ -1398,6 +1469,9 @@ async function build() {
 
   if (avifCreated > 0) {
     console.log(`Generated ${avifCreated} AVIF file(s).`);
+  }
+  if (thumbCreated > 0) {
+    console.log(`Generated ${thumbCreated} thumbnail file(s).`);
   }
   console.log(`Built ${populatedBirds.length} bird page(s).`);
 }

@@ -46,9 +46,10 @@
       const card = document.createElement('a');
       card.className = 'gallery-card';
       card.href = item.speciesHref;
+      const imageSrc = item.thumbSrc || item.src;
       card.innerHTML = `
         <div class="gallery-card__media media-frame">
-          <img class="media-image media-fade" src="/${item.src}" alt="${item.bird} photograph" loading="lazy" decoding="async" />
+          <img class="media-image media-fade" src="/${imageSrc}" alt="${item.bird} photograph" loading="lazy" decoding="async" />
           <div class="gallery-card__meta">
             <span>${item.bird}</span>
             <span>${item.captureDate || 'Unknown date'}</span>
