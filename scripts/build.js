@@ -522,9 +522,6 @@ function renderIndex(
           <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''} • <a class="meta-link" href="/birdopedia/map/index.html">Field map</a> • <a class="meta-link" href="/birdopedia/gallery/index.html">Gallery</a></span>
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
-        <div class="hero-actions">
-          <a class="btn" href="/birdopedia/map/index.html">Explore the field map</a>
-        </div>
       </div>
     </header>
 
@@ -1031,7 +1028,13 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
   });
 }
 
-function renderGalleryPage() {
+function renderGalleryPage(filters = { cameras: [], lenses: [] }) {
+  const cameraOptions = filters.cameras
+    .map((camera) => `<option value="${escapeAttr(camera)}">${escapeHtml(camera)}</option>`)
+    .join('');
+  const lensOptions = filters.lenses
+    .map((lens) => `<option value="${escapeAttr(lens)}">${escapeHtml(lens)}</option>`)
+    .join('');
   const content = `
     <header class="gallery-hero">
       <div class="gallery-hero__content">
@@ -1053,6 +1056,20 @@ function renderGalleryPage() {
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="species">Species A–Z</option>
+          </select>
+        </label>
+        <label class="sort-field" for="gallery-camera">
+          <span>Camera</span>
+          <select id="gallery-camera">
+            <option value="">All cameras</option>
+            ${cameraOptions}
+          </select>
+        </label>
+        <label class="sort-field" for="gallery-lens">
+          <span>Lens</span>
+          <select id="gallery-lens">
+            <option value="">All lenses</option>
+            ${lensOptions}
           </select>
         </label>
       </div>
@@ -1434,8 +1451,12 @@ async function build() {
       thumbSrc: image.thumbSrc,
       bird: bird.name,
       speciesHref,
+      camera: image.camera,
+      lens: image.lens,
       captureDate: image.captureDate,
-      captureDateIso: image.captureDateIso
+      captureDateIso: image.captureDateIso,
+      width: Number.isFinite(image.width) ? image.width : null,
+      height: Number.isFinite(image.height) ? image.height : null
     }));
   });
   galleryItems.sort((a, b) => {
@@ -1450,7 +1471,15 @@ async function build() {
     return a.bird.localeCompare(b.bird);
   });
   fs.writeFileSync(path.join(SITE_DIR, 'gallery.json'), JSON.stringify(galleryItems, null, 2));
-  const galleryHtml = renderGalleryPage();
+  const galleryFilters = {
+    cameras: Array.from(new Set(galleryItems.map((item) => item.camera).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, 'en', { sensitivity: 'base' })
+    ),
+    lenses: Array.from(new Set(galleryItems.map((item) => item.lens).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, 'en', { sensitivity: 'base' })
+    )
+  };
+  const galleryHtml = renderGalleryPage(galleryFilters);
   const galleryDir = path.join(SITE_DIR, 'gallery');
   if (!fs.existsSync(galleryDir)) {
     fs.mkdirSync(galleryDir, { recursive: true });

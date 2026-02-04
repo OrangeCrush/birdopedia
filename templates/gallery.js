@@ -2,6 +2,8 @@
   const grid = document.querySelector('[data-gallery-grid]');
   const loadButton = document.querySelector('[data-gallery-load]');
   const sortSelect = document.getElementById('gallery-sort');
+  const cameraSelect = document.getElementById('gallery-camera');
+  const lensSelect = document.getElementById('gallery-lens');
   if (!grid) {
     return;
   }
@@ -47,8 +49,9 @@
       card.className = 'gallery-card';
       card.href = item.speciesHref;
       const imageSrc = item.thumbSrc || item.src;
+      const ratio = item.width && item.height ? `${item.width} / ${item.height}` : '3 / 2';
       card.innerHTML = `
-        <div class="gallery-card__media media-frame">
+        <div class="gallery-card__media media-frame" style="aspect-ratio: ${ratio};">
           <img class="media-image media-fade" src="/${imageSrc}" alt="${item.bird} photograph" loading="lazy" decoding="async" />
           <div class="gallery-card__meta">
             <span>${item.bird}</span>
@@ -106,8 +109,19 @@
     return shuffle(current);
   };
 
+  const applyFilters = (list) => {
+    const camera = cameraSelect ? cameraSelect.value : '';
+    const lens = lensSelect ? lensSelect.value : '';
+    return list.filter((item) => {
+      const cameraMatch = !camera || item.camera === camera;
+      const lensMatch = !lens || item.lens === lens;
+      return cameraMatch && lensMatch;
+    });
+  };
+
   const resetGallery = (mode) => {
-    sortedItems = sortItems(mode);
+    const sorted = sortItems(mode);
+    sortedItems = applyFilters(sorted);
     cursor = 0;
     grid.innerHTML = '';
     if (loadButton) {
@@ -132,6 +146,18 @@
         sortSelect.addEventListener('change', (event) => {
           const value = event.target.value || 'random';
           resetGallery(value);
+        });
+      }
+      if (cameraSelect) {
+        cameraSelect.addEventListener('change', () => {
+          const value = sortSelect ? sortSelect.value : 'random';
+          resetGallery(value || 'random');
+        });
+      }
+      if (lensSelect) {
+        lensSelect.addEventListener('change', () => {
+          const value = sortSelect ? sortSelect.value : 'random';
+          resetGallery(value || 'random');
         });
       }
     })
