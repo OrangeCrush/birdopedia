@@ -91,6 +91,13 @@
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
+  mapEl.addEventListener('mouseenter', () => {
+    map.scrollWheelZoom.enable();
+  });
+  mapEl.addEventListener('mouseleave', () => {
+    map.scrollWheelZoom.disable();
+  });
+
   if (payload.bounds) {
     const bounds = L.latLngBounds([
       [payload.bounds.minLat, payload.bounds.minLon],
