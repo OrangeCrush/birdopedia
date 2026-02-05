@@ -41,11 +41,11 @@
   }
 
   const spotlight = document.querySelector('[data-spotlight]');
-  const spotlightImage = spotlight ? spotlight.querySelector('img') : null;
+  const spotlightLink = spotlight ? spotlight.querySelector('.map-spotlight__media') : null;
+  const spotlightImage = spotlightLink ? spotlightLink.querySelector('img') : null;
   const spotlightTitle = spotlight ? spotlight.querySelector('h2') : null;
   const spotlightDate = spotlight ? spotlight.querySelector('.map-spotlight__date') : null;
   const spotlightMeta = spotlight ? spotlight.querySelector('.map-spotlight__meta') : null;
-  const spotlightLink = spotlight ? spotlight.querySelector('a') : null;
 
   const speciesSelect = document.getElementById('map-species');
   const focusSelect = document.getElementById('map-toggle-latest');
@@ -118,12 +118,13 @@
       : point.speciesHref;
     return `
       <div class="map-popup">
-        <img src="/${point.src}" alt="${point.bird} photograph" loading="lazy" decoding="async" />
+        <a href="${pointHref}">
+          <img src="/${point.src}" alt="${point.bird} photograph" loading="lazy" decoding="async" />
+        </a>
         <div class="map-popup__meta">
           <strong>${point.bird}</strong>
           <span>${metaLine || 'Metadata unavailable'}</span>
           ${locationLine ? `<span>${locationLine}</span>` : ''}
-          <a href="${pointHref}">Open species page →</a>
         </div>
       </div>`;
   };

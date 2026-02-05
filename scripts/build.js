@@ -990,14 +990,13 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
       <aside class="map-sidebar">
         <section class="map-spotlight" data-spotlight>
           <p class="eyebrow">Capture spotlight</p>
-          <div class="map-spotlight__media media-frame">
+          <a class="map-spotlight__media media-frame" href="#">
             <img class="media-image media-fade" src="" alt="" loading="lazy" decoding="async" />
-          </div>
+          </a>
           <div class="map-spotlight__info">
             <h2></h2>
             <p class="map-spotlight__date"></p>
             <p class="map-spotlight__meta"></p>
-            <a class="meta-link" href="#">Open species page →</a>
           </div>
         </section>
         <section class="map-recent">
