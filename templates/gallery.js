@@ -47,7 +47,10 @@
     slice.forEach((item) => {
       const card = document.createElement('a');
       card.className = 'gallery-card';
-      card.href = item.speciesHref;
+      const targetHref = item.filename
+        ? `${item.speciesHref}?image=${encodeURIComponent(item.filename)}`
+        : item.speciesHref;
+      card.href = targetHref;
       const imageSrc = item.thumbSrc || item.src;
       const ratio = item.width && item.height ? `${item.width} / ${item.height}` : '3 / 2';
       card.innerHTML = `

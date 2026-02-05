@@ -183,10 +183,13 @@
     return;
   }
 
-  media.setAttribute('href', choice.speciesHref);
+  const featuredHref = choice.filename
+    ? `${choice.speciesHref}?image=${encodeURIComponent(choice.filename)}`
+    : choice.speciesHref;
+  media.setAttribute('href', featuredHref);
   img.setAttribute('src', `/${choice.src}`);
   img.setAttribute('alt', `${choice.bird} featured photograph`);
-  titleLink.setAttribute('href', choice.speciesHref);
+  titleLink.setAttribute('href', featuredHref);
   titleLink.textContent = choice.bird;
 
   const dateNode = featured.querySelector('.featured-shot__date');

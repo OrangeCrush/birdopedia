@@ -496,8 +496,9 @@ function renderIndex(
         <div class="recent-captures__grid">
           ${recentCaptures
             .map((capture) => {
+              const imageParam = capture.filename ? `?image=${encodeURIComponent(capture.filename)}` : '';
               return `
-              <a class="recent-captures__card" href="${capture.speciesHref}">
+              <a class="recent-captures__card" href="${capture.speciesHref}${imageParam}">
                 <div class="recent-captures__thumb media-frame">
                   <img class="media-image media-fade" src="/${capture.thumbSrc || capture.src}" alt="${capture.bird} recent capture" loading="lazy" decoding="async" />
                 </div>
@@ -1273,10 +1274,11 @@ async function build() {
   const featuredImages = populatedBirds.length
     ? populatedBirds.flatMap((bird) => {
         const speciesHref = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
-        return bird.images.map((image) => ({
+      return bird.images.map((image) => ({
           bird: bird.name,
           src: image.src,
           thumbSrc: image.thumbSrc,
+          filename: image.filename,
           captureDate: image.captureDate,
           speciesHref
         }));
@@ -1294,6 +1296,7 @@ async function build() {
         bird: bird.name,
         src: latestImage.src,
         thumbSrc: latestImage.thumbSrc,
+        filename: latestImage.filename,
         captureDate: latestImage.captureDate,
         captureDateIso: latestImage.captureDateIso,
         speciesHref
@@ -1451,6 +1454,7 @@ async function build() {
       thumbSrc: image.thumbSrc,
       bird: bird.name,
       speciesHref,
+      filename: image.filename,
       camera: image.camera,
       lens: image.lens,
       captureDate: image.captureDate,

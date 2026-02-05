@@ -213,6 +213,14 @@
       }
     };
 
+    const requestedImage = new URLSearchParams(window.location.search).get('image');
+    if (requestedImage) {
+      const targetIndex = images.findIndex((img) => img.dataset.filename === requestedImage);
+      if (targetIndex >= 0) {
+        update(targetIndex);
+      }
+    }
+
     setMeta(images[index]);
     const getActive = () => ({ img: images[index], index });
 

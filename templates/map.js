@@ -106,6 +106,9 @@
   const buildPopup = (point) => {
     const metaLine = [point.captureDate, point.camera, point.lens].filter(Boolean).join(' • ');
     const locationLine = point.locationLabel || '';
+    const pointHref = point.filename
+      ? `${point.speciesHref}?image=${encodeURIComponent(point.filename)}`
+      : point.speciesHref;
     return `
       <div class="map-popup">
         <img src="/${point.src}" alt="${point.bird} photograph" loading="lazy" decoding="async" />
@@ -113,7 +116,7 @@
           <strong>${point.bird}</strong>
           <span>${metaLine || 'Metadata unavailable'}</span>
           ${locationLine ? `<span>${locationLine}</span>` : ''}
-          <a href="${point.speciesHref}">Open species page →</a>
+          <a href="${pointHref}">Open species page →</a>
         </div>
       </div>`;
   };
@@ -144,7 +147,9 @@
       spotlightMeta.textContent = parts.length ? parts.join(' • ') : 'Metadata unavailable';
     }
     if (spotlightLink) {
-      spotlightLink.href = point.speciesHref;
+      spotlightLink.href = point.filename
+        ? `${point.speciesHref}?image=${encodeURIComponent(point.filename)}`
+        : point.speciesHref;
     }
     applyImageLoadingEffects(spotlight);
   };
