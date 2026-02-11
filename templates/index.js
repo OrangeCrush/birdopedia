@@ -110,7 +110,8 @@
         }
 
         if (countNode) {
-          countNode.textContent = query ? `${visible} of ${total} species` : `${total} species`;
+          const hasFilters = Boolean(query || family || status);
+          countNode.textContent = hasFilters ? `${visible} species` : `${total} species`;
         }
         if (emptyState) {
           emptyState.hidden = visible !== 0;
