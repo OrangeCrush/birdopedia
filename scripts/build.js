@@ -238,6 +238,158 @@ function formatDisplayDate(date) {
   }).format(date);
 }
 
+function formatDisplayTime(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC'
+  }).format(date);
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
+}
+
+function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30) {
+  const byDay = new Map();
+  mapPoints.forEach((point) => {
+    const captureDateObj = normalizeExifDate(point.captureDateIso);
+    if (!captureDateObj) {
+      return;
+    }
+    const dayKey = captureDateObj.toISOString().slice(0, 10);
+    if (!byDay.has(dayKey)) {
+      byDay.set(dayKey, []);
+    }
+    byDay.get(dayKey).push({ ...point, captureDateObj, dayKey });
+  });
+
+  const trips = [];
+
+  Array.from(byDay.entries()).forEach(([dayKey, points]) => {
+    points.sort((a, b) => a.captureDateObj - b.captureDateObj);
+    const visited = new Array(points.length).fill(false);
+
+    for (let i = 0; i < points.length; i += 1) {
+      if (visited[i]) {
+        continue;
+      }
+      const queue = [i];
+      visited[i] = true;
+      const component = [];
+
+      while (queue.length) {
+        const index = queue.pop();
+        component.push(index);
+        for (let j = 0; j < points.length; j += 1) {
+          if (visited[j]) {
+            continue;
+          }
+          const distance = haversineKm(points[index].lat, points[index].lon, points[j].lat, points[j].lon);
+          if (distance <= clusterRadiusKm) {
+            visited[j] = true;
+            queue.push(j);
+          }
+        }
+      }
+
+      if (component.length < 2) {
+        continue;
+      }
+
+      const captures = component.map((index) => points[index]).sort((a, b) => a.captureDateObj - b.captureDateObj);
+      const centroid = captures.reduce(
+        (acc, capture) => {
+          acc.lat += capture.lat;
+          acc.lon += capture.lon;
+          return acc;
+        },
+        { lat: 0, lon: 0 }
+      );
+      centroid.lat /= captures.length;
+      centroid.lon /= captures.length;
+
+      const maxSpreadKm = captures.reduce((max, capture) => {
+        const distance = haversineKm(centroid.lat, centroid.lon, capture.lat, capture.lon);
+        return Math.max(max, distance);
+      }, 0);
+
+      const species = Array.from(new Set(captures.map((capture) => capture.bird))).sort((a, b) =>
+        a.localeCompare(b, 'en', { sensitivity: 'base' })
+      );
+      const locations = Array.from(
+        new Set(
+          captures.map((capture) => {
+            if (capture.locationLabel) {
+              return capture.locationLabel;
+            }
+            const parts = [capture.city, capture.state, capture.country].filter(Boolean);
+            return parts.join(', ') || `${capture.lat.toFixed(3)}, ${capture.lon.toFixed(3)}`;
+          })
+        )
+      );
+
+      const firstCapture = captures[0];
+      const lastCapture = captures[captures.length - 1];
+      const dateLabel = formatDisplayDate(firstCapture.captureDateObj);
+      const timeRange = `${formatDisplayTime(firstCapture.captureDateObj)} - ${formatDisplayTime(lastCapture.captureDateObj)} UTC`;
+
+      const images = captures.map((capture) => ({
+        src: capture.src,
+        thumbSrc: capture.thumbSrc || capture.src,
+        bird: capture.bird,
+        speciesHref: capture.speciesHref,
+        filename: capture.filename,
+        captureDate: capture.captureDate,
+        captureDateIso: capture.captureDateIso,
+        lat: capture.lat,
+        lon: capture.lon
+      }));
+
+      const coverIndex = images.length - 1;
+      const cover = images[coverIndex];
+
+      trips.push({
+        id: `${dayKey}-${String(trips.length + 1).padStart(2, '0')}`,
+        dayKey,
+        dateLabel,
+        timeRange,
+        imageCount: images.length,
+        speciesCount: species.length,
+        species,
+        locations,
+        centroid,
+        maxSpreadKm,
+        images,
+        coverIndex,
+        cover,
+        mapHref: `/birdopedia/map/index.html?species=${encodeURIComponent(cover.bird)}&focus=all&image=${encodeURIComponent(
+          cover.filename
+        )}`
+      });
+    }
+  });
+
+  trips.sort((a, b) => {
+    if (a.dayKey !== b.dayKey) {
+      return b.dayKey.localeCompare(a.dayKey);
+    }
+    return b.imageCount - a.imageCount;
+  });
+
+  return trips.map((trip, index) => ({ ...trip, id: `trip-${index + 1}` }));
+}
+
 function buildBandingCode(name) {
   if (!name || typeof name !== 'string') {
     return null;
@@ -562,7 +714,7 @@ function renderIndex(
         <h1>Birdopedia</h1>
         <p class="lede">${bio}</p>
         <div class="hero-meta">
-          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''} • <a class="meta-link" href="/birdopedia/map/index.html">Field map</a> • <a class="meta-link" href="/birdopedia/gallery/index.html">Gallery</a></span>
+          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''} • <a class="meta-link" href="/birdopedia/map/index.html">Field map</a> • <a class="meta-link" href="/birdopedia/gallery/index.html">Gallery</a> • <a class="meta-link" href="/birdopedia/trips/index.html">Trips</a></span>
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
       </div>
@@ -1137,6 +1289,141 @@ function renderGalleryPage(filters = { cameras: [], lenses: [] }) {
   });
 }
 
+function renderTripsPage(trips = []) {
+  const totalTripPhotos = trips.reduce((sum, trip) => sum + trip.imageCount, 0);
+  const totalTripSpecies = new Set(trips.flatMap((trip) => trip.species)).size;
+  const tripDays = new Set(trips.map((trip) => trip.dayKey)).size;
+  const largestTrip = trips.slice().sort((a, b) => b.imageCount - a.imageCount)[0] || null;
+  const cards = trips
+    .map((trip) => {
+      const speciesLinks = trip.species
+        .slice(0, 10)
+        .map(
+          (name) =>
+            `<a class="trip-chip" href="/${toWebPath('birdopedia', name, 'index.html')}">${escapeHtml(name)}</a>`
+        )
+        .join('');
+      const hiddenSpecies = trip.species.length > 10 ? `<span class="trip-chip">+${trip.species.length - 10} more</span>` : '';
+      const locationLabel = trip.locations.slice(0, 3).join(' • ');
+      const extraLocations = trip.locations.length > 3 ? ` • +${trip.locations.length - 3} more` : '';
+      const thumbButtons = trip.images
+        .slice()
+        .reverse()
+        .slice(0, 8)
+        .map((image) => {
+          const imageIndex = trip.images.findIndex((item) => item.filename === image.filename);
+          return `
+            <button class="trip-thumb" type="button" data-trip-thumb data-trip-id="${trip.id}" data-image-index="${imageIndex}">
+              <img class="media-image media-fade" src="/${image.thumbSrc || image.src}" alt="${escapeAttr(image.bird)} trip image" loading="lazy" decoding="async" />
+            </button>`;
+        })
+        .join('');
+
+      return `
+        <article class="trip-card">
+          <button
+            class="trip-card__hero media-frame zoomable"
+            type="button"
+            data-trip-open
+            data-trip-id="${trip.id}"
+            data-image-index="${trip.coverIndex}"
+          >
+            <img class="media-image media-fade" src="/${trip.cover.src || trip.cover.thumbSrc}" alt="${escapeAttr(trip.cover.bird)} trip cover" loading="lazy" decoding="async" />
+            <span class="zoom-indicator" aria-hidden="true"></span>
+            <span class="trip-card__badge">${trip.dateLabel}</span>
+          </button>
+          <div class="trip-card__body">
+            <div class="trip-card__title">
+              <h2>${trip.dateLabel}</h2>
+              <p>${trip.timeRange}</p>
+            </div>
+            <div class="trip-kpis">
+              <div><span>Photos</span><strong>${trip.imageCount}</strong></div>
+              <div><span>Species</span><strong>${trip.speciesCount}</strong></div>
+              <div><span>Spread</span><strong>${trip.maxSpreadKm.toFixed(1)} km</strong></div>
+            </div>
+            <p class="trip-card__location">${escapeHtml(locationLabel || 'Unknown location')}${escapeHtml(extraLocations)}</p>
+            <div class="trip-card__species">${speciesLinks}${hiddenSpecies}</div>
+            <div class="trip-card__thumbs">${thumbButtons}</div>
+            <div class="trip-card__actions">
+              <a class="meta-link" href="${trip.mapHref}">View this trip on map</a>
+            </div>
+          </div>
+        </article>`;
+    })
+    .join('');
+
+  const emptyState = trips.length
+    ? ''
+    : `<section class="trips-empty"><p>No trips detected yet. Add geotagged photos taken on the same day in nearby locations.</p></section>`;
+
+  const tripScriptData = trips.map((trip) => ({
+    id: trip.id,
+    images: trip.images.map((image) => ({
+      src: image.src,
+      bird: image.bird,
+      captureDate: image.captureDate,
+      speciesHref: image.speciesHref,
+      filename: image.filename
+    }))
+  }));
+
+  const content = `
+    <header class="trips-hero">
+      <div class="trips-hero__content">
+        <div class="page-nav">
+          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
+        </div>
+        <p class="eyebrow">Field Expeditions</p>
+        <h1>Trips</h1>
+        <p class="lede">Automatically grouped photo days based on nearby locations and shared capture dates.</p>
+      </div>
+      <div class="trips-hero__stats">
+        <div class="stat"><span class="stat__label">Detected trips</span><span class="stat__value">${trips.length}</span></div>
+        <div class="stat"><span class="stat__label">Trip photos</span><span class="stat__value">${totalTripPhotos}</span></div>
+        <div class="stat"><span class="stat__label">Species across trips</span><span class="stat__value">${totalTripSpecies}</span></div>
+        <div class="stat"><span class="stat__label">Trip days</span><span class="stat__value">${tripDays}</span></div>
+        <div class="stat"><span class="stat__label">Largest trip</span><span class="stat__value">${
+          largestTrip ? `${largestTrip.dateLabel} (${largestTrip.imageCount})` : 'None yet'
+        }</span></div>
+      </div>
+    </header>
+
+    <main class="trips-main">
+      ${emptyState}
+      <section class="trips-grid">
+        ${cards}
+      </section>
+    </main>
+
+    <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
+      <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
+      <button class="preview-modal__nav" type="button" data-preview-dir="prev" aria-label="Previous photo">‹</button>
+      <img class="preview-modal__image" alt="" />
+      <button class="preview-modal__nav" type="button" data-preview-dir="next" aria-label="Next photo">›</button>
+      <div class="trip-preview__meta">
+        <strong data-preview-bird></strong>
+        <span data-preview-date></span>
+        <a class="meta-link" data-preview-link href="#">Open species page</a>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <span>${config.authorName || 'The photographer'} • ${trips.length} trip${trips.length === 1 ? '' : 's'} discovered from field metadata.</span>
+    </footer>
+
+    <script type="application/json" id="trip-data">${JSON.stringify(tripScriptData).replace(/</g, '\\u003c')}</script>
+  `;
+
+  return renderLayout({
+    title: 'Trips',
+    description: 'Trip groupings inferred from date and geotag proximity.',
+    bodyClass: 'page-trips',
+    content,
+    extraScripts: '<script src="/birdopedia/trips.js"></script>'
+  });
+}
+
 async function build() {
   if (!fs.existsSync(PUBLIC_DIR)) {
     fs.mkdirSync(PUBLIC_DIR, { recursive: true });
@@ -1150,6 +1437,7 @@ async function build() {
   const indexScriptSource = path.join(TEMPLATES_DIR, 'index.js');
   const mapScriptSource = path.join(TEMPLATES_DIR, 'map.js');
   const galleryScriptSource = path.join(TEMPLATES_DIR, 'gallery.js');
+  const tripsScriptSource = path.join(TEMPLATES_DIR, 'trips.js');
   if (fs.existsSync(stylesSource)) {
     fs.copyFileSync(stylesSource, path.join(SITE_DIR, 'styles.css'));
   }
@@ -1164,6 +1452,9 @@ async function build() {
   }
   if (fs.existsSync(galleryScriptSource)) {
     fs.copyFileSync(galleryScriptSource, path.join(SITE_DIR, 'gallery.js'));
+  }
+  if (fs.existsSync(tripsScriptSource)) {
+    fs.copyFileSync(tripsScriptSource, path.join(SITE_DIR, 'trips.js'));
   }
 
   const allBirds = listBirds();
@@ -1387,6 +1678,7 @@ async function build() {
         bird: bird.name,
         speciesHref,
         src: image.src,
+        thumbSrc: image.thumbSrc,
         filename: image.filename,
         captureDate: image.captureDate,
         captureDateIso: image.captureDateIso,
@@ -1494,6 +1786,14 @@ async function build() {
     fs.mkdirSync(mapDir, { recursive: true });
   }
   fs.writeFileSync(path.join(mapDir, 'index.html'), mapHtml);
+
+  const trips = createTripsFromMapPoints(mapPoints);
+  const tripsHtml = renderTripsPage(trips);
+  const tripsDir = path.join(SITE_DIR, 'trips');
+  if (!fs.existsSync(tripsDir)) {
+    fs.mkdirSync(tripsDir, { recursive: true });
+  }
+  fs.writeFileSync(path.join(tripsDir, 'index.html'), tripsHtml);
 
   const galleryItems = populatedBirds.flatMap((bird) => {
     const speciesHref = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
