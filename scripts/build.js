@@ -264,6 +264,22 @@ function buildBandingCode(name) {
   return `${words[0][0]}${words[1][0]}${words[2][0]}${words[3][0]}`.toUpperCase();
 }
 
+function formatMassDisplay(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return value;
+  }
+
+  if (numeric < 1) {
+    const grams = numeric * 1000;
+    const rounded = grams >= 100 ? Math.round(grams) : Number(grams.toFixed(1));
+    return `${String(rounded).replace(/\.0$/, '')} g`;
+  }
+
+  const roundedKg = numeric >= 10 ? Number(numeric.toFixed(1)) : Number(numeric.toFixed(2));
+  return `${String(roundedKg).replace(/\.0$/, '')} kg`;
+}
+
 function exifToIso(dateValue, offsetValue) {
   if (!dateValue || typeof dateValue !== 'string') {
     return null;
@@ -774,7 +790,7 @@ function renderBirdPage(bird, ebirdInfo) {
   const wikidataFacts = [
     ['Conservation status', profile.conservationStatus],
     ['Wingspan (m)', profile.wingspan],
-    ['Mass (kg)', profile.mass],
+    ['Mass', formatMassDisplay(profile.mass)],
     ['Lifespan (years)', profile.lifespan],
     ['Body length (m)', profile.bodyLength],
     ['Height (m)', profile.height],

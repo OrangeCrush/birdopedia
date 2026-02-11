@@ -421,53 +421,305 @@ function extractLabel(binding, key) {
   return binding[key].value || null;
 }
 
+function extractNumber(binding, key) {
+  const value = extractValue(binding, key);
+  if (value == null) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractUnitHint(binding, unitKey, unitLabelKey) {
+  const unitUri = extractValue(binding, unitKey);
+  const unitLabel = (extractLabel(binding, unitLabelKey) || '').toLowerCase();
+  const unitId = unitUri ? unitUri.split('/').pop() : '';
+  return `${unitId} ${unitLabel}`.trim();
+}
+
+function roundFact(value) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  const abs = Math.abs(value);
+  let decimals = 3;
+  if (abs >= 100) {
+    decimals = 0;
+  } else if (abs >= 10) {
+    decimals = 1;
+  } else if (abs >= 1) {
+    decimals = 2;
+  }
+  return Number(value.toFixed(decimals));
+}
+
+function normalizeMassToKg(amount, unitHint) {
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+  const hint = (unitHint || '').toLowerCase();
+  if (!hint || hint.includes('q11570') || hint.includes('kilogram')) {
+    return amount;
+  }
+  if (hint.includes('q41803') || hint.includes('gram')) {
+    return amount / 1000;
+  }
+  if (hint.includes('milligram')) {
+    return amount / 1000000;
+  }
+  if (hint.includes('q100995') || hint.includes('pound')) {
+    return amount * 0.45359237;
+  }
+  if (hint.includes('q483261') || hint.includes('ounce')) {
+    return amount * 0.028349523125;
+  }
+  return null;
+}
+
+function normalizeLengthToMeters(amount, unitHint) {
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+  const hint = (unitHint || '').toLowerCase();
+  if (!hint || hint.includes('q11573') || hint.includes('meter') || hint.includes('metre')) {
+    return amount;
+  }
+  if (hint.includes('q174728') || hint.includes('centimeter') || hint.includes('centimetre')) {
+    return amount / 100;
+  }
+  if (hint.includes('q174789') || hint.includes('millimeter') || hint.includes('millimetre')) {
+    return amount / 1000;
+  }
+  if (hint.includes('q828224') || hint.includes('kilometer') || hint.includes('kilometre')) {
+    return amount * 1000;
+  }
+  if (hint.includes('q218593') || hint.includes('inch')) {
+    return amount * 0.0254;
+  }
+  if (hint.includes('q3710') || hint.includes('foot') || hint.includes('feet')) {
+    return amount * 0.3048;
+  }
+  if (hint.includes('q482798') || hint.includes('yard')) {
+    return amount * 0.9144;
+  }
+  return null;
+}
+
+function normalizeYears(amount, unitHint) {
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+  const hint = (unitHint || '').toLowerCase();
+  if (!hint || hint.includes('q577') || hint.includes('year')) {
+    return amount;
+  }
+  if (hint.includes('q5151') || hint.includes('month')) {
+    return amount / 12;
+  }
+  if (hint.includes('q573') || hint.includes('day')) {
+    return amount / 365.25;
+  }
+  return null;
+}
+
+function formatFact(value) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return String(roundFact(value));
+}
+
+function pickFirstNonEmpty(values) {
+  for (const value of values) {
+    if (value != null && value !== '') {
+      return value;
+    }
+  }
+  return null;
+}
+
+function pickLargest(values) {
+  const finite = values.filter((value) => Number.isFinite(value));
+  if (!finite.length) {
+    return null;
+  }
+  return Math.max(...finite);
+}
+
+function buildWikidataRecord(bindings) {
+  const conservationStatuses = [];
+  const audios = [];
+  const nativeRanges = [];
+  const wingspans = [];
+  const masses = [];
+  const lifespans = [];
+  const bodyLengths = [];
+  const heights = [];
+
+  bindings.forEach((binding) => {
+    conservationStatuses.push(extractLabel(binding, 'conservationStatusLabel'));
+    audios.push(extractValue(binding, 'audio'));
+    nativeRanges.push(extractLabel(binding, 'nativeRange'));
+
+    wingspans.push(
+      normalizeLengthToMeters(
+        extractNumber(binding, 'wingspanAmount'),
+        extractUnitHint(binding, 'wingspanUnit', 'wingspanUnitLabel')
+      )
+    );
+    masses.push(
+      normalizeMassToKg(
+        extractNumber(binding, 'massAmount'),
+        extractUnitHint(binding, 'massUnit', 'massUnitLabel')
+      )
+    );
+    lifespans.push(
+      normalizeYears(
+        extractNumber(binding, 'lifespanAmount'),
+        extractUnitHint(binding, 'lifespanUnit', 'lifespanUnitLabel')
+      )
+    );
+    bodyLengths.push(
+      normalizeLengthToMeters(
+        extractNumber(binding, 'lengthAmount'),
+        extractUnitHint(binding, 'lengthUnit', 'lengthUnitLabel')
+      )
+    );
+    heights.push(
+      normalizeLengthToMeters(
+        extractNumber(binding, 'heightAmount'),
+        extractUnitHint(binding, 'heightUnit', 'heightUnitLabel')
+      )
+    );
+  });
+
+  return {
+    conservationStatus: pickFirstNonEmpty(conservationStatuses),
+    wingspan: formatFact(pickLargest(wingspans)),
+    mass: formatFact(pickLargest(masses)),
+    audio: pickFirstNonEmpty(audios),
+    lifespan: formatFact(pickLargest(lifespans)),
+    bodyLength: formatFact(pickLargest(bodyLengths)),
+    height: formatFact(pickLargest(heights)),
+    nativeRange: pickFirstNonEmpty(nativeRanges)
+  };
+}
+
 async function queryByScientificName(name) {
   const query = `
-    SELECT ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
+    SELECT ?item ?conservationStatusLabel ?audio
+           ?wingspanAmount ?wingspanUnit ?wingspanUnitLabel
+           ?massAmount ?massUnit ?massUnitLabel
+           ?lifespanAmount ?lifespanUnit ?lifespanUnitLabel
+           ?lengthAmount ?lengthUnit ?lengthUnitLabel
+           ?heightAmount ?heightUnit ?heightUnitLabel
            (GROUP_CONCAT(DISTINCT ?nativeRangeLabel; separator=", ") AS ?nativeRange)
     WHERE {
       ?item wdt:P225 "${name}".
       OPTIONAL { ?item wdt:P141 ?conservationStatus. }
-      OPTIONAL { ?item wdt:P2050 ?wingspan. }
-      OPTIONAL { ?item wdt:P2067 ?mass. }
+      OPTIONAL {
+        ?item p:P2050 ?wingspanStatement.
+        ?wingspanStatement psn:P2050 ?wingspanNode.
+        ?wingspanNode wikibase:quantityAmount ?wingspanAmount;
+                      wikibase:quantityUnit ?wingspanUnit.
+      }
+      OPTIONAL {
+        ?item p:P2067 ?massStatement.
+        ?massStatement psn:P2067 ?massNode.
+        ?massNode wikibase:quantityAmount ?massAmount;
+                  wikibase:quantityUnit ?massUnit.
+      }
       OPTIONAL { ?item wdt:P51 ?audio. }
-      OPTIONAL { ?item wdt:P2250 ?lifespan. }
-      OPTIONAL { ?item wdt:P2043 ?length. }
-      OPTIONAL { ?item wdt:P2048 ?height. }
+      OPTIONAL {
+        ?item p:P2250 ?lifespanStatement.
+        ?lifespanStatement psn:P2250 ?lifespanNode.
+        ?lifespanNode wikibase:quantityAmount ?lifespanAmount;
+                      wikibase:quantityUnit ?lifespanUnit.
+      }
+      OPTIONAL {
+        ?item p:P2043 ?lengthStatement.
+        ?lengthStatement psn:P2043 ?lengthNode.
+        ?lengthNode wikibase:quantityAmount ?lengthAmount;
+                    wikibase:quantityUnit ?lengthUnit.
+      }
+      OPTIONAL {
+        ?item p:P2048 ?heightStatement.
+        ?heightStatement psn:P2048 ?heightNode.
+        ?heightNode wikibase:quantityAmount ?heightAmount;
+                    wikibase:quantityUnit ?heightUnit.
+      }
       OPTIONAL { ?item wdt:P183 ?nativeRange. }
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
     }
-    GROUP BY ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
-    LIMIT 1
+    GROUP BY ?item ?conservationStatusLabel ?audio
+             ?wingspanAmount ?wingspanUnit ?wingspanUnitLabel
+             ?massAmount ?massUnit ?massUnitLabel
+             ?lifespanAmount ?lifespanUnit ?lifespanUnitLabel
+             ?lengthAmount ?lengthUnit ?lengthUnitLabel
+             ?heightAmount ?heightUnit ?heightUnitLabel
   `;
   const url = `https://query.wikidata.org/sparql?format=json&query=${encodeQuery(query)}`;
   const response = await requestJson(url, { 'User-Agent': 'birdopedia/1.0 (local script)' });
-  return response.results.bindings[0] || null;
+  return response.results?.bindings || [];
 }
 
 async function queryByCommonName(name) {
   const query = `
-    SELECT ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
+    SELECT ?item ?conservationStatusLabel ?audio
+           ?wingspanAmount ?wingspanUnit ?wingspanUnitLabel
+           ?massAmount ?massUnit ?massUnitLabel
+           ?lifespanAmount ?lifespanUnit ?lifespanUnitLabel
+           ?lengthAmount ?lengthUnit ?lengthUnitLabel
+           ?heightAmount ?heightUnit ?heightUnitLabel
            (GROUP_CONCAT(DISTINCT ?nativeRangeLabel; separator=", ") AS ?nativeRange)
     WHERE {
       ?item rdfs:label "${name}"@en.
       ?item wdt:P31/wdt:P279* wd:Q16521.
       OPTIONAL { ?item wdt:P141 ?conservationStatus. }
-      OPTIONAL { ?item wdt:P2050 ?wingspan. }
-      OPTIONAL { ?item wdt:P2067 ?mass. }
+      OPTIONAL {
+        ?item p:P2050 ?wingspanStatement.
+        ?wingspanStatement psn:P2050 ?wingspanNode.
+        ?wingspanNode wikibase:quantityAmount ?wingspanAmount;
+                      wikibase:quantityUnit ?wingspanUnit.
+      }
+      OPTIONAL {
+        ?item p:P2067 ?massStatement.
+        ?massStatement psn:P2067 ?massNode.
+        ?massNode wikibase:quantityAmount ?massAmount;
+                  wikibase:quantityUnit ?massUnit.
+      }
       OPTIONAL { ?item wdt:P51 ?audio. }
-      OPTIONAL { ?item wdt:P2250 ?lifespan. }
-      OPTIONAL { ?item wdt:P2043 ?length. }
-      OPTIONAL { ?item wdt:P2048 ?height. }
+      OPTIONAL {
+        ?item p:P2250 ?lifespanStatement.
+        ?lifespanStatement psn:P2250 ?lifespanNode.
+        ?lifespanNode wikibase:quantityAmount ?lifespanAmount;
+                      wikibase:quantityUnit ?lifespanUnit.
+      }
+      OPTIONAL {
+        ?item p:P2043 ?lengthStatement.
+        ?lengthStatement psn:P2043 ?lengthNode.
+        ?lengthNode wikibase:quantityAmount ?lengthAmount;
+                    wikibase:quantityUnit ?lengthUnit.
+      }
+      OPTIONAL {
+        ?item p:P2048 ?heightStatement.
+        ?heightStatement psn:P2048 ?heightNode.
+        ?heightNode wikibase:quantityAmount ?heightAmount;
+                    wikibase:quantityUnit ?heightUnit.
+      }
       OPTIONAL { ?item wdt:P183 ?nativeRange. }
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
     }
-    GROUP BY ?item ?conservationStatusLabel ?wingspan ?mass ?audio ?lifespan ?length ?height
-    LIMIT 1
+    GROUP BY ?item ?conservationStatusLabel ?audio
+             ?wingspanAmount ?wingspanUnit ?wingspanUnitLabel
+             ?massAmount ?massUnit ?massUnitLabel
+             ?lifespanAmount ?lifespanUnit ?lifespanUnitLabel
+             ?lengthAmount ?lengthUnit ?lengthUnitLabel
+             ?heightAmount ?heightUnit ?heightUnitLabel
   `;
   const url = `https://query.wikidata.org/sparql?format=json&query=${encodeQuery(query)}`;
   const response = await requestJson(url, { 'User-Agent': 'birdopedia/1.0 (local script)' });
-  return response.results.bindings[0] || null;
+  return response.results?.bindings || [];
 }
 
 async function fetchWikidata(ebirdPayload) {
@@ -505,35 +757,26 @@ async function fetchWikidata(ebirdPayload) {
     console.log(`Wikidata: fetching ${commonName}...`);
     fetchedCount += 1;
     const scientificName = info.scientificName;
-    let binding = null;
+    let bindings = [];
 
     try {
       if (scientificName) {
-        binding = await queryByScientificName(scientificName);
+        bindings = await queryByScientificName(scientificName);
       }
-      if (!binding) {
-        binding = await queryByCommonName(commonName);
+      if (!bindings.length) {
+        bindings = await queryByCommonName(commonName);
       }
     } catch (error) {
       console.warn(`Wikidata request failed for ${commonName}: ${error.message || error}`);
       continue;
     }
 
-    if (!binding) {
+    if (!bindings.length) {
       console.warn(`Wikidata: no match for ${commonName}.`);
       continue;
     }
 
-    const record = {
-      conservationStatus: extractLabel(binding, 'conservationStatusLabel'),
-      wingspan: extractValue(binding, 'wingspan'),
-      mass: extractValue(binding, 'mass'),
-      audio: extractValue(binding, 'audio'),
-      lifespan: extractValue(binding, 'lifespan'),
-      bodyLength: extractValue(binding, 'length'),
-      height: extractValue(binding, 'height'),
-      nativeRange: extractLabel(binding, 'nativeRange')
-    };
+    const record = buildWikidataRecord(bindings);
     const missingFields = Object.entries(record)
       .filter(([, value]) => value == null)
       .map(([key]) => key);
