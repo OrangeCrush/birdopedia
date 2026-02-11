@@ -238,6 +238,32 @@ function formatDisplayDate(date) {
   }).format(date);
 }
 
+function buildBandingCode(name) {
+  if (!name || typeof name !== 'string') {
+    return null;
+  }
+
+  const words = name
+    .replace(/-/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.replace(/[^A-Za-z]/g, ''))
+    .filter(Boolean);
+
+  if (words.length === 0) {
+    return null;
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 4).toUpperCase();
+  }
+  if (words.length === 2) {
+    return `${words[0].slice(0, 2)}${words[1].slice(0, 2)}`.toUpperCase();
+  }
+  if (words.length === 3) {
+    return `${words[0][0]}${words[1][0]}${words[2].slice(0, 2)}`.toUpperCase();
+  }
+  return `${words[0][0]}${words[1][0]}${words[2][0]}${words[3][0]}`.toUpperCase();
+}
+
 function exifToIso(dateValue, offsetValue) {
   if (!dateValue || typeof dateValue !== 'string') {
     return null;
@@ -641,6 +667,7 @@ function renderBirdPage(bird, ebirdInfo) {
   const wikidataInfo = wikidata.species?.[bird.name] || {};
   const wikipediaInfo = wikipedia.species?.[bird.name] || {};
   const profile = { ...(ebirdInfo || {}), ...wikidataInfo };
+  const bandingCode = buildBandingCode(bird.name);
   const profileItems = [
     ['Scientific name', profile.scientificName],
     ['Family', profile.family],
@@ -835,7 +862,7 @@ function renderBirdPage(bird, ebirdInfo) {
         <p class="eyebrow">${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'}</p>
         <h1>${bird.name}</h1>
         <p class="lede">${profile.scientificName || 'Species profile pending.'}</p>
-        <p class="species-code">eBird code: ${profile.speciesCode || 'Unknown'}</p>
+        <p class="species-code">Banding code: ${bandingCode || 'Unknown'}</p>
         ${wikidataAudio ? `<div class="bird-audio">${wikidataAudio}</div>` : ''}
       </div>
       <div class="bird-hero__media">
