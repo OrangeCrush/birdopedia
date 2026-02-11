@@ -1119,6 +1119,13 @@ function renderGalleryPage(filters = { cameras: [], lenses: [] }) {
       <div class="gallery-grid" data-gallery-grid></div>
       <button class="gallery-load" type="button" data-gallery-load>Load more</button>
     </main>
+
+    <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
+      <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
+      <button class="preview-modal__nav" type="button" data-preview-dir="prev" aria-label="Previous photo">‹</button>
+      <img class="preview-modal__image" alt="" />
+      <button class="preview-modal__nav" type="button" data-preview-dir="next" aria-label="Next photo">›</button>
+    </div>
   `;
 
   return renderLayout({
