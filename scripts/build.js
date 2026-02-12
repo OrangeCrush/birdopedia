@@ -280,6 +280,21 @@ function formatDisplayTimeLocal(date) {
   }).format(date);
 }
 
+function formatDurationMinutes(totalMinutes) {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+    return '0m';
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (!hours) {
+    return `${minutes}m`;
+  }
+  if (!minutes) {
+    return `${hours}h`;
+  }
+  return `${hours}h ${minutes}m`;
+}
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -291,7 +306,12 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return 6371 * c;
 }
 
-function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30, dayExtraCaptures = new Map()) {
+function createTripsFromMapPoints(
+  mapPoints,
+  clusterRadiusKm = 30,
+  dayExtraCaptures = new Map(),
+  firstSeenDayBySpecies = {}
+) {
   const normalizeLocationToken = (value) =>
     String(value || '')
       .replace(/[’‘`]/g, "'")
@@ -501,8 +521,36 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30, dayExtraCaptu
 
       const firstCapture = captures[0];
       const lastCapture = captures[captures.length - 1];
+      const durationMinutes = Math.max(0, Math.round((lastCapture.captureDateObj - firstCapture.captureDateObj) / 60000));
+      const durationLabel = formatDurationMinutes(durationMinutes);
       const dateLabel = formatDisplayDateLocal(firstCapture.captureDateObj);
       const timeRange = `${formatDisplayTimeLocal(firstCapture.captureDateObj)} - ${formatDisplayTimeLocal(lastCapture.captureDateObj)} local`;
+      const speciesCounts = captures.reduce((acc, capture) => {
+        acc[capture.bird] = (acc[capture.bird] || 0) + 1;
+        return acc;
+      }, {});
+      const topSpeciesEntry = Object.entries(speciesCounts).sort(
+        (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en', { sensitivity: 'base' })
+      )[0];
+      const topSpeciesLabel = topSpeciesEntry ? `${topSpeciesEntry[0]} (${topSpeciesEntry[1]})` : 'Unknown';
+      const newSpecies = species.filter((name) => firstSeenDayBySpecies[name] === dayKey);
+      const hasNewSpecies = newSpecies.length > 0;
+      const newSpeciesLabel = hasNewSpecies ? newSpecies.join(', ') : 'None';
+      const countByValue = (items) =>
+        items.reduce((acc, value) => {
+          acc[value] = (acc[value] || 0) + 1;
+          return acc;
+        }, {});
+      const topValue = (items) => {
+        const entries = Object.entries(countByValue(items));
+        const top = entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en', { sensitivity: 'base' }))[0];
+        return top ? top[0] : null;
+      };
+      const cameraItems = captures.map((capture) => capture.camera).filter((value) => value && value !== 'Unknown');
+      const lensItems = captures.map((capture) => capture.lens).filter((value) => value && value !== 'Unknown');
+      const primaryCamera = topValue(cameraItems) || 'Unknown camera';
+      const primaryLens = topValue(lensItems) || 'Unknown lens';
+      const gearLabel = `${primaryCamera} + ${primaryLens}`;
       const titleLabels = parks.slice();
       const titleCenters = selectedParkCentroids.slice();
       if (titleLabels.length) {
@@ -554,9 +602,14 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30, dayExtraCaptu
         dayKey,
         locationTitle,
         dateLabel,
+        durationLabel,
         timeRange,
         imageCount: images.length,
         speciesCount: species.length,
+        topSpeciesLabel,
+        hasNewSpecies,
+        newSpeciesLabel,
+        gearLabel,
         species,
         locations,
         centroid,
@@ -1542,7 +1595,9 @@ function renderTripsPage(trips = []) {
         .join('');
 
       return `
-        <article class="trip-card">
+        <article class="trip-card${trip.id === trips[0]?.id ? ' is-active' : ''}" data-trip-panel="${trip.id}"${
+          trip.id === trips[0]?.id ? '' : ' hidden'
+        }>
           <button
             class="trip-card__hero media-frame zoomable"
             type="button"
@@ -1557,21 +1612,42 @@ function renderTripsPage(trips = []) {
           <div class="trip-card__body">
             <div class="trip-card__title">
               <h2>${escapeHtml(trip.locationTitle)}</h2>
-              <p>${trip.dateLabel} • ${trip.timeRange}</p>
+              <p>${trip.dateLabel} • ${trip.durationLabel}</p>
             </div>
             <div class="trip-kpis">
               <div><span>Photos</span><strong>${trip.imageCount}</strong></div>
               <div><span>Species</span><strong>${trip.speciesCount}</strong></div>
-              <div><span>Spread</span><strong>${trip.maxSpreadKm.toFixed(1)} km</strong></div>
+              <div><span>Duration</span><strong>${trip.durationLabel}</strong></div>
+              <div><span>Most photographed</span><strong class="trip-kpi__text">${escapeHtml(trip.topSpeciesLabel)}</strong></div>
+              <div><span>Primary gear</span><strong class="trip-kpi__text">${escapeHtml(trip.gearLabel)}</strong></div>
             </div>
             <p class="trip-card__location">${escapeHtml(locationLabel || 'Unknown location')}${escapeHtml(extraLocations)}</p>
             <div class="trip-card__species">${speciesLinks}${hiddenSpecies}</div>
+            <dl class="trip-facts">
+              <div><dt>New species</dt><dd>${
+                trip.hasNewSpecies
+                  ? `<span class="trip-badge trip-badge--new">${escapeHtml(trip.newSpeciesLabel)}</span>`
+                  : escapeHtml(trip.newSpeciesLabel)
+              }</dd></div>
+            </dl>
             <div class="trip-card__thumbs">${thumbButtons}</div>
             <div class="trip-card__actions">
               <a class="meta-link" href="${trip.mapHref}">View this trip on map</a>
             </div>
           </div>
         </article>`;
+    })
+    .join('');
+
+  const tripList = trips
+    .map((trip) => {
+      return `<button class="trip-select${trip.id === trips[0]?.id ? ' is-active' : ''}" type="button" data-trip-select="${trip.id}" aria-current="${
+        trip.id === trips[0]?.id ? 'true' : 'false'
+      }">
+        <span class="trip-select__date">${escapeHtml(trip.dateLabel)}</span>
+        <span class="trip-select__title">${escapeHtml(trip.locationTitle)}</span>
+        <span class="trip-select__meta">${trip.imageCount} photo${trip.imageCount === 1 ? '' : 's'} • ${trip.speciesCount} species</span>
+      </button>`;
     })
     .join('');
 
@@ -1613,8 +1689,16 @@ function renderTripsPage(trips = []) {
 
     <main class="trips-main">
       ${emptyState}
-      <section class="trips-grid">
-        ${cards}
+      <section class="trips-layout">
+        <aside class="trips-nav" data-trip-nav>
+          <h2>All trips</h2>
+          <div class="trips-nav__list">
+            ${tripList}
+          </div>
+        </aside>
+        <section class="trips-stage">
+          ${cards}
+        </section>
       </section>
     </main>
 
@@ -1886,6 +1970,18 @@ async function build() {
   fs.writeFileSync(path.join(SITE_DIR, 'index.html'), indexHtml);
   fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), indexHtml);
 
+  const firstSeenDayBySpecies = {};
+  populatedBirds.forEach((bird) => {
+    const firstDate = bird.images
+      .map((image) => normalizeExifDate(image.captureDateRaw || image.captureDateIso))
+      .filter(Boolean)
+      .sort((a, b) => a - b)[0];
+    const dayKey = firstDate ? toLocalDayKey(firstDate) : null;
+    if (dayKey) {
+      firstSeenDayBySpecies[bird.name] = dayKey;
+    }
+  });
+
   const mapPoints = [];
   const tripExtraCapturesByDay = new Map();
   populatedBirds.forEach((bird) => {
@@ -2044,7 +2140,7 @@ async function build() {
   }
   fs.writeFileSync(path.join(mapDir, 'index.html'), mapHtml);
 
-  const trips = createTripsFromMapPoints(mapPoints, 30, tripExtraCapturesByDay);
+  const trips = createTripsFromMapPoints(mapPoints, 30, tripExtraCapturesByDay, firstSeenDayBySpecies);
   const tripsHtml = renderTripsPage(trips);
   const tripsDir = path.join(SITE_DIR, 'trips');
   if (!fs.existsSync(tripsDir)) {

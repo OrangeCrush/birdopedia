@@ -8,9 +8,10 @@
   const birdLabel = preview ? preview.querySelector('[data-preview-bird]') : null;
   const dateLabel = preview ? preview.querySelector('[data-preview-date]') : null;
   const speciesLink = preview ? preview.querySelector('[data-preview-link]') : null;
-  const gallery = document.querySelector('.trips-grid');
+  const stage = document.querySelector('.trips-stage');
+  const nav = document.querySelector('[data-trip-nav]');
 
-  if (!dataNode || !preview || !previewImage || !gallery) {
+  if (!dataNode || !preview || !previewImage || !stage) {
     return;
   }
 
@@ -49,6 +50,7 @@
   };
 
   const state = {
+    activeTripId: null,
     tripId: null,
     imageIndex: -1
   };
@@ -114,7 +116,44 @@
     updatePreview();
   };
 
-  gallery.addEventListener('click', (event) => {
+  const setActiveTrip = (tripId) => {
+    if (!tripId || !tripsById.has(tripId)) {
+      return;
+    }
+    state.activeTripId = tripId;
+    const panels = Array.from(stage.querySelectorAll('[data-trip-panel]'));
+    panels.forEach((panel) => {
+      if (!(panel instanceof HTMLElement)) {
+        return;
+      }
+      const active = panel.getAttribute('data-trip-panel') === tripId;
+      panel.classList.toggle('is-active', active);
+      panel.hidden = !active;
+    });
+    if (nav) {
+      const buttons = Array.from(nav.querySelectorAll('[data-trip-select]'));
+      buttons.forEach((button) => {
+        if (!(button instanceof HTMLElement)) {
+          return;
+        }
+        const active = button.getAttribute('data-trip-select') === tripId;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-current', active ? 'true' : 'false');
+      });
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('trip', tripId);
+    window.history.replaceState({}, '', url);
+  };
+
+  const firstTrip = trips[0]?.id || null;
+  const requestedTrip = new URL(window.location.href).searchParams.get('trip');
+  const initialTrip = requestedTrip && tripsById.has(requestedTrip) ? requestedTrip : firstTrip;
+  if (initialTrip) {
+    setActiveTrip(initialTrip);
+  }
+
+  stage.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
       return;
@@ -130,6 +169,24 @@
     }
     openPreview(tripId, imageIndex);
   });
+
+  if (nav) {
+    nav.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      const button = target.closest('[data-trip-select]');
+      if (!(button instanceof HTMLElement)) {
+        return;
+      }
+      const tripId = button.getAttribute('data-trip-select');
+      if (!tripId) {
+        return;
+      }
+      setActiveTrip(tripId);
+    });
+  }
 
   if (preview) {
     preview.addEventListener('click', (event) => {
