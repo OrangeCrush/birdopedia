@@ -13,6 +13,9 @@ const GEOCODE_PATH = path.join(DATA_DIR, 'geocode.json');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'ebird.overrides.json');
 const ENV_PATH = path.join(ROOT, '.env');
 const HARD_REFRESH = process.argv.includes('--hard');
+const PARK_MAX_DISTANCE_MILES = 0.5;
+const PROTECTED_MAX_DISTANCE_MILES = 1.0;
+const KM_PER_MILE = 1.609344;
 const WIKIPEDIA_MIN_SUMMARY_CHARS = 420;
 const WIKIPEDIA_MAX_SUMMARY_CHARS = 1200;
 const WIKIPEDIA_MAX_PARAGRAPHS = 5;
@@ -104,7 +107,79 @@ function geocodeKey(lat, lon) {
   return `${lat.toFixed(4)},${lon.toFixed(4)}`;
 }
 
-function formatLocation(address = {}) {
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
+}
+
+function firstStringValue(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function hasParkLikeType(payload = {}) {
+  const token = `${payload.class || ''} ${payload.type || ''} ${payload.addresstype || ''}`.toLowerCase();
+  return [
+    'park',
+    'nature_reserve',
+    'protected_area',
+    'national_park',
+    'state_park',
+    'recreation_ground',
+    'conservation'
+  ].some((key) => token.includes(key));
+}
+
+function hasPoiLikeType(payload = {}) {
+  const token = `${payload.class || ''} ${payload.type || ''} ${payload.addresstype || ''}`.toLowerCase();
+  return [
+    'attraction',
+    'museum',
+    'zoo',
+    'gallery',
+    'viewpoint',
+    'camp_site',
+    'picnic_site',
+    'beach'
+  ].some((key) => token.includes(key));
+}
+
+function extractParkName(address = {}, payload = {}) {
+  return firstStringValue(
+    address.park,
+    address.nature_reserve,
+    address.protected_area,
+    address.national_park,
+    address.state_park,
+    address.recreation_ground,
+    address.conservation,
+    payload.extratags?.park,
+    hasParkLikeType(payload) ? payload.name : null
+  );
+}
+
+function extractSiteName(address = {}, payload = {}) {
+  return firstStringValue(
+    address.attraction,
+    address.tourism,
+    address.leisure,
+    address.amenity,
+    address.building,
+    hasPoiLikeType(payload) ? payload.name : null
+  );
+}
+
+function formatLocation(address = {}, payload = {}) {
   const city =
     address.city ||
     address.town ||
@@ -119,8 +194,12 @@ function formatLocation(address = {}) {
     address.state_district ||
     null;
   const country = address.country || null;
+  const park = extractParkName(address, payload);
+  const site = extractSiteName(address, payload);
   const parts = [city, state, country].filter(Boolean);
   return {
+    park,
+    site,
     city,
     state,
     country,
@@ -128,12 +207,216 @@ function formatLocation(address = {}) {
   };
 }
 
-async function reverseGeocode(lat, lon, email, cache) {
+function buildViewbox(lat, lon, delta = 0.08) {
+  return `${lon - delta},${lat + delta},${lon + delta},${lat - delta}`;
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .replace(/[’‘`]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function isAdministrativeName(value) {
+  const token = normalizeText(value);
+  if (!token) {
+    return false;
+  }
+  return [
+    'town of ',
+    'city of ',
+    'village of ',
+    'county',
+    'township',
+    'municipality',
+    'state of '
+  ].some((part) => token.includes(part));
+}
+
+function isWildlifeProtectedCandidate(result = {}) {
+  const extra = result.extratags || {};
+  const token = normalizeText(
+    `${result.name || ''} ${result.display_name || ''} ${result.category || ''} ${result.type || ''} ${result.addresstype || ''} ${extra.boundary || ''} ${extra.protection_title || ''}`
+  );
+  return [
+    'wildlife area',
+    'wildlife refuge',
+    'waterfowl protection area',
+    'protected_area',
+    'protected area',
+    'nature reserve',
+    'nature_reserve',
+    'state wildlife area',
+    'state natural area'
+  ].some((term) => token.includes(term));
+}
+
+function classifyParkCandidate(result) {
+  const name = String(result.name || '').trim();
+  const display = String(result.display_name || '').toLowerCase();
+  const category = String(result.category || '').toLowerCase();
+  const type = String(result.type || '').toLowerCase();
+  const addresstype = String(result.addresstype || '').toLowerCase();
+  const extra = result.extratags || {};
+  const protectionTitle = String(extra.protection_title || '').toLowerCase();
+  const token = `${name} ${display} ${category} ${type} ${addresstype} ${protectionTitle}`.toLowerCase();
+
+  let score = 0;
+  if (token.includes('state park')) {
+    score += 90;
+  }
+  if (token.includes('nature preserve') || token.includes('nature reserve')) {
+    score += 75;
+  }
+  if (token.includes('wildlife area') || token.includes('waterfowl protection area')) {
+    score += 70;
+  }
+  if (token.includes('recreation area')) {
+    score += 60;
+  }
+  if (token.includes(' bog')) {
+    score += 58;
+  }
+  if (category === 'leisure' && type === 'park') {
+    score += 45;
+  }
+  if (type === 'nature_reserve' || type === 'protected_area' || extra.boundary === 'protected_area') {
+    score += 52;
+  }
+  if (category === 'boundary' && type === 'administrative') {
+    score -= 60;
+  }
+  if (['highway', 'place', 'building'].includes(category)) {
+    score -= 35;
+  }
+  if (!name) {
+    score -= 25;
+  }
+
+  const lat = Number(result.lat);
+  const lon = Number(result.lon);
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    score += Math.max(0, 22 - haversineKm(result.__targetLat, result.__targetLon, lat, lon) * 1.8);
+  }
+
+  return score;
+}
+
+async function findNearbyPark(lat, lon, city, state) {
+  const queryTerms = [
+    'state park',
+    'nature reserve',
+    'nature preserve',
+    'wildlife area',
+    'waterfowl protection area',
+    'recreation area',
+    'bog',
+    'park'
+  ];
+  const headers = { 'User-Agent': `Birdopedia/${config.authorName || 'Photographer'}` };
+  const dedup = new Map();
+  let best = null;
+
+  for (const term of queryTerms) {
+    const params = new URLSearchParams({
+      format: 'jsonv2',
+      q: term,
+      limit: '6',
+      addressdetails: '1',
+      extratags: '1',
+      namedetails: '1',
+      bounded: '1',
+      viewbox: buildViewbox(lat, lon, 0.08)
+    });
+    const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+    let results = [];
+    try {
+      results = await requestJson(url, headers);
+    } catch (error) {
+      continue;
+    }
+    if (!Array.isArray(results) || !results.length) {
+      continue;
+    }
+    results.forEach((result) => {
+      const key = `${result.osm_type || 'x'}:${result.osm_id || result.place_id || result.display_name || Math.random()}`;
+      if (!dedup.has(key)) {
+        dedup.set(key, { ...result, __targetLat: lat, __targetLon: lon });
+      }
+    });
+    for (const candidate of dedup.values()) {
+      const candidateLat = Number(candidate.lat);
+      const candidateLon = Number(candidate.lon);
+      if (!Number.isFinite(candidateLat) || !Number.isFinite(candidateLon)) {
+        continue;
+      }
+      const distanceMiles = haversineKm(lat, lon, candidateLat, candidateLon) / KM_PER_MILE;
+      const maxDistanceMiles = isWildlifeProtectedCandidate(candidate)
+        ? PROTECTED_MAX_DISTANCE_MILES
+        : PARK_MAX_DISTANCE_MILES;
+      if (distanceMiles > maxDistanceMiles) {
+        continue;
+      }
+      const candidateName = firstStringValue(
+        candidate.name,
+        candidate.address?.nature_reserve,
+        candidate.address?.park,
+        candidate.address?.protected_area
+      );
+      if (!candidateName) {
+        continue;
+      }
+      if (isAdministrativeName(candidateName)) {
+        continue;
+      }
+      if (normalizeText(candidateName) === normalizeText(city)) {
+        continue;
+      }
+      const score = classifyParkCandidate(candidate);
+      if (!best || score > best.score) {
+        best = { candidate, score, distanceMiles, maxDistanceMiles };
+      }
+    }
+    if (best && best.score >= 95) {
+      break;
+    }
+    await sleep(200);
+  }
+
+  if (!best || best.score < 45 || best.distanceMiles > best.maxDistanceMiles) {
+    return null;
+  }
+
+  const chosen = best.candidate;
+  const parkName = firstStringValue(
+    chosen.name,
+    chosen.address?.nature_reserve,
+    chosen.address?.park,
+    chosen.address?.protected_area
+  );
+  if (!parkName) {
+    return null;
+  }
+
+  const normalizedCity = normalizeText(city);
+  const normalizedState = normalizeText(state);
+  const displayName = String(chosen.display_name || '').toLowerCase();
+  if (normalizedCity && !displayName.includes(normalizedCity) && normalizedState && !displayName.includes(normalizedState)) {
+    return null;
+  }
+
+  return parkName;
+}
+
+async function reverseGeocode(lat, lon, email, cache, options = {}) {
   const key = geocodeKey(lat, lon);
   if (!key) {
     return 'failed';
   }
-  if (cache.points?.[key]) {
+  const forceRefresh = Boolean(options.forceRefresh);
+  if (cache.points?.[key] && !forceRefresh) {
     return 'cached';
   }
   const params = new URLSearchParams({
@@ -141,7 +424,9 @@ async function reverseGeocode(lat, lon, email, cache) {
     lat: String(lat),
     lon: String(lon),
     zoom: '14',
-    addressdetails: '1'
+    addressdetails: '1',
+    namedetails: '1',
+    extratags: '1'
   });
   if (email) {
     params.set('email', email);
@@ -152,12 +437,18 @@ async function reverseGeocode(lat, lon, email, cache) {
   };
   try {
     const payload = await requestJson(url, headers);
-    const location = formatLocation(payload.address || {});
+    const location = formatLocation(payload.address || {}, payload);
+    let parkName = location.park;
+    if (!parkName) {
+      parkName = await findNearbyPark(lat, lon, location.city, location.state);
+    }
     const entry = {
       key,
       lat,
       lon,
       label: location.label,
+      park: parkName || null,
+      site: location.site,
       city: location.city,
       state: location.state,
       country: location.country
@@ -991,7 +1282,16 @@ async function fetchGeocodes(birdFolders, email) {
     }
   }
 
-  const missingKeys = Array.from(targets.keys()).filter((key) => !cache.points[key]);
+  const missingKeys = Array.from(targets.keys()).filter((key) => {
+    if (HARD_REFRESH) {
+      return true;
+    }
+    const entry = cache.points[key];
+    if (!entry) {
+      return true;
+    }
+    return !entry.park && !entry.site;
+  });
   let fetchedCount = 0;
   let reusedCount = Object.keys(cache.points).length;
   if (missingKeys.length) {
@@ -1002,7 +1302,9 @@ async function fetchGeocodes(birdFolders, email) {
       if (!target) {
         continue;
       }
-      const result = await reverseGeocode(target.lat, target.lon, email, cache);
+      const existing = cache.points[key];
+      const forceRefresh = HARD_REFRESH || (Boolean(existing) && !existing.park && !existing.site);
+      const result = await reverseGeocode(target.lat, target.lon, email, cache, { forceRefresh });
       if (result === 'fetched') {
         fetchedCount += 1;
         if (index < missingKeys.length - 1) {

@@ -260,7 +260,30 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return 6371 * c;
 }
 
-function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30) {
+function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30, dayExtraCaptures = new Map()) {
+  const normalizeLocationToken = (value) =>
+    String(value || '')
+      .replace(/[’‘`]/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  const labelQuality = (value) => {
+    const text = String(value || '');
+    const upperCount = (text.match(/[A-Z]/g) || []).length;
+    return upperCount * 10 + text.length;
+  };
+  const isGenericAdmin = (value) => {
+    const token = normalizeLocationToken(value);
+    return (
+      token.startsWith('town of ') ||
+      token.startsWith('city of ') ||
+      token.endsWith(' county') ||
+      token.endsWith(' township')
+    );
+  };
+  const TITLE_APPEND_DISTANCE_MILES = 3;
+  const KM_PER_MILE = 1.609344;
+
   const byDay = new Map();
   mapPoints.forEach((point) => {
     const captureDateObj = normalizeExifDate(point.captureDateIso);
@@ -303,12 +326,8 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30) {
         }
       }
 
-      if (component.length < 2) {
-        continue;
-      }
-
-      const captures = component.map((index) => points[index]).sort((a, b) => a.captureDateObj - b.captureDateObj);
-      const centroid = captures.reduce(
+      const geoCaptures = component.map((index) => points[index]).sort((a, b) => a.captureDateObj - b.captureDateObj);
+      const centroid = geoCaptures.reduce(
         (acc, capture) => {
           acc.lat += capture.lat;
           acc.lon += capture.lon;
@@ -316,20 +335,127 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30) {
         },
         { lat: 0, lon: 0 }
       );
-      centroid.lat /= captures.length;
-      centroid.lon /= captures.length;
+      centroid.lat /= geoCaptures.length;
+      centroid.lon /= geoCaptures.length;
 
-      const maxSpreadKm = captures.reduce((max, capture) => {
+      const maxSpreadKm = geoCaptures.reduce((max, capture) => {
         const distance = haversineKm(centroid.lat, centroid.lon, capture.lat, capture.lon);
         return Math.max(max, distance);
       }, 0);
 
+      const captures = geoCaptures.slice();
+      const extraCaptures = dayExtraCaptures.get(dayKey) || [];
+      const seenCaptureKeys = new Set(captures.map((capture) => `${capture.bird}::${capture.filename}`));
+      extraCaptures.forEach((capture) => {
+        const key = `${capture.bird}::${capture.filename}`;
+        if (seenCaptureKeys.has(key)) {
+          return;
+        }
+        const captureDateObj = normalizeExifDate(capture.captureDateIso);
+        captures.push({ ...capture, captureDateObj, dayKey });
+        seenCaptureKeys.add(key);
+      });
+      captures.sort((a, b) => a.captureDateObj - b.captureDateObj);
+
       const species = Array.from(new Set(captures.map((capture) => capture.bird))).sort((a, b) =>
         a.localeCompare(b, 'en', { sensitivity: 'base' })
       );
+      const parkLabelsByKey = new Map();
+      geoCaptures.forEach((capture) => {
+        const value = (capture.park || capture.site || '').trim();
+        const key = normalizeLocationToken(value);
+        if (!value || !key) {
+          return;
+        }
+        const existing = parkLabelsByKey.get(key);
+        if (!existing || labelQuality(value) > labelQuality(existing)) {
+          parkLabelsByKey.set(key, value);
+        }
+      });
+      const parkEntries = Array.from(parkLabelsByKey.values()).map((label) => {
+        const normalized = normalizeLocationToken(label);
+        const matches = geoCaptures.filter(
+          (capture) => normalizeLocationToken(capture.park || capture.site || '') === normalized
+        );
+        const centroid = matches.reduce(
+          (acc, capture) => {
+            acc.lat += capture.lat;
+            acc.lon += capture.lon;
+            return acc;
+          },
+          { lat: 0, lon: 0 }
+        );
+        centroid.lat /= matches.length || 1;
+        centroid.lon /= matches.length || 1;
+        return {
+          label,
+          normalized,
+          count: matches.length,
+          centroid
+        };
+      });
+      parkEntries.sort((a, b) => b.count - a.count || labelQuality(b.label) - labelQuality(a.label));
+
+      const parks = [];
+      const selectedParkCentroids = [];
+      parkEntries.forEach((entry) => {
+        if (parks.length < 2) {
+          parks.push(entry.label);
+          selectedParkCentroids.push(entry.centroid);
+          return;
+        }
+        const minMiles = selectedParkCentroids.reduce((min, center) => {
+          const miles = haversineKm(entry.centroid.lat, entry.centroid.lon, center.lat, center.lon) / KM_PER_MILE;
+          return Math.min(min, miles);
+        }, Number.POSITIVE_INFINITY);
+        if (minMiles >= TITLE_APPEND_DISTANCE_MILES) {
+          parks.push(entry.label);
+          selectedParkCentroids.push(entry.centroid);
+        }
+      });
+      const cities = [];
+      geoCaptures.forEach((capture) => {
+        const value = (capture.city || '').trim();
+        if (value && !cities.includes(value)) {
+          cities.push(value);
+        }
+      });
+      const cityEntriesByKey = new Map();
+      geoCaptures.forEach((capture) => {
+        const label = (capture.city || '').trim();
+        const key = normalizeLocationToken(label);
+        if (!label || !key || isGenericAdmin(label)) {
+          return;
+        }
+        const current = cityEntriesByKey.get(key) || { label, points: [] };
+        current.points.push(capture);
+        if (labelQuality(label) > labelQuality(current.label)) {
+          current.label = label;
+        }
+        cityEntriesByKey.set(key, current);
+      });
+      const cityEntries = Array.from(cityEntriesByKey.values()).map((entry) => {
+        const centroid = entry.points.reduce(
+          (acc, point) => {
+            acc.lat += point.lat;
+            acc.lon += point.lon;
+            return acc;
+          },
+          { lat: 0, lon: 0 }
+        );
+        centroid.lat /= entry.points.length || 1;
+        centroid.lon /= entry.points.length || 1;
+        return {
+          label: entry.label,
+          normalized: normalizeLocationToken(entry.label),
+          centroid,
+          count: entry.points.length
+        };
+      });
+      cityEntries.sort((a, b) => b.count - a.count || labelQuality(b.label) - labelQuality(a.label));
       const locations = Array.from(
         new Set(
-          captures.map((capture) => {
+          geoCaptures.map((capture) => {
             if (capture.locationLabel) {
               return capture.locationLabel;
             }
@@ -343,6 +469,36 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30) {
       const lastCapture = captures[captures.length - 1];
       const dateLabel = formatDisplayDate(firstCapture.captureDateObj);
       const timeRange = `${formatDisplayTime(firstCapture.captureDateObj)} - ${formatDisplayTime(lastCapture.captureDateObj)} UTC`;
+      const titleLabels = parks.slice();
+      const titleCenters = selectedParkCentroids.slice();
+      if (titleLabels.length) {
+        cityEntries.forEach((entry) => {
+          if (titleLabels.length >= 4) {
+            return;
+          }
+          if (titleLabels.some((label) => normalizeLocationToken(label) === entry.normalized)) {
+            return;
+          }
+          const minMiles = titleCenters.reduce((min, center) => {
+            const miles = haversineKm(entry.centroid.lat, entry.centroid.lon, center.lat, center.lon) / KM_PER_MILE;
+            return Math.min(min, miles);
+          }, Number.POSITIVE_INFINITY);
+          if (minMiles >= TITLE_APPEND_DISTANCE_MILES) {
+            titleLabels.push(entry.label);
+            titleCenters.push(entry.centroid);
+          }
+        });
+      }
+
+      const preferredTitleLabels = titleLabels.filter((label) => !isGenericAdmin(label));
+      const displayTitleLabels = preferredTitleLabels.length ? preferredTitleLabels : titleLabels;
+      const locationTitle = displayTitleLabels.length
+        ? displayTitleLabels.join(', ')
+        : parks.length
+        ? parks.slice(0, 2).join(', ')
+        : cities.length
+          ? cities.slice(0, 2).join(', ')
+        : locations[0] || `${centroid.lat.toFixed(3)}, ${centroid.lon.toFixed(3)}`;
 
       const images = captures.map((capture) => ({
         src: capture.src,
@@ -362,6 +518,7 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30) {
       trips.push({
         id: `${dayKey}-${String(trips.length + 1).padStart(2, '0')}`,
         dayKey,
+        locationTitle,
         dateLabel,
         timeRange,
         imageCount: images.length,
@@ -1334,8 +1491,8 @@ function renderTripsPage(trips = []) {
           </button>
           <div class="trip-card__body">
             <div class="trip-card__title">
-              <h2>${trip.dateLabel}</h2>
-              <p>${trip.timeRange}</p>
+              <h2>${escapeHtml(trip.locationTitle)}</h2>
+              <p>${trip.dateLabel} • ${trip.timeRange}</p>
             </div>
             <div class="trip-kpis">
               <div><span>Photos</span><strong>${trip.imageCount}</strong></div>
@@ -1378,7 +1535,7 @@ function renderTripsPage(trips = []) {
         <h1>Trips</h1>
         <p class="lede">Automatically grouped photo days based on nearby locations and shared capture dates.</p>
       </div>
-      <div class="trips-hero__stats">
+      <div class="trips-hero__stats site-hero__stats">
         <div class="stat"><span class="stat__label">Detected trips</span><span class="stat__value">${trips.length}</span></div>
         <div class="stat"><span class="stat__label">Trip photos</span><span class="stat__value">${totalTripPhotos}</span></div>
         <div class="stat"><span class="stat__label">Species across trips</span><span class="stat__value">${totalTripSpecies}</span></div>
@@ -1665,10 +1822,43 @@ async function build() {
   fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), indexHtml);
 
   const mapPoints = [];
+  const tripExtraCapturesByDay = new Map();
   populatedBirds.forEach((bird) => {
     const speciesHref = `/${toWebPath('birdopedia', bird.name, 'index.html')}`;
+    const ebirdInfo = ebird.species?.[bird.name];
     bird.images.forEach((image) => {
+      const captureDateObj = normalizeExifDate(image.captureDateRaw || image.captureDateIso);
+      const dayKey = captureDateObj ? captureDateObj.toISOString().slice(0, 10) : null;
       if (!image.gps) {
+        if (dayKey) {
+          if (!tripExtraCapturesByDay.has(dayKey)) {
+            tripExtraCapturesByDay.set(dayKey, []);
+          }
+          tripExtraCapturesByDay.get(dayKey).push({
+            bird: bird.name,
+            speciesHref,
+            src: image.src,
+            thumbSrc: image.thumbSrc,
+            filename: image.filename,
+            captureDate: image.captureDate,
+            captureDateIso: image.captureDateIso,
+            camera: image.camera,
+            lens: image.lens,
+            aperture: image.aperture,
+            exposure: image.exposure,
+            iso: image.iso,
+            family: ebirdInfo?.family || null,
+            status: ebirdInfo?.status || wikidata.species?.[bird.name]?.conservationStatus || null,
+            locationLabel: null,
+            park: null,
+            site: null,
+            city: null,
+            state: null,
+            country: null,
+            lat: null,
+            lon: null
+          });
+        }
         return;
       }
       const locationKey = geocodeKey(image.gps.lat, image.gps.lon);
@@ -1687,9 +1877,11 @@ async function build() {
         aperture: image.aperture,
         exposure: image.exposure,
         iso: image.iso,
-        family: ebird.species?.[bird.name]?.family || null,
-        status: ebird.species?.[bird.name]?.status || wikidata.species?.[bird.name]?.conservationStatus || null,
+        family: ebirdInfo?.family || null,
+        status: ebirdInfo?.status || wikidata.species?.[bird.name]?.conservationStatus || null,
         locationLabel: location?.label || null,
+        park: location?.park || null,
+        site: location?.site || null,
         city: location?.city || null,
         state: location?.state || null,
         country: location?.country || null,
@@ -1787,7 +1979,7 @@ async function build() {
   }
   fs.writeFileSync(path.join(mapDir, 'index.html'), mapHtml);
 
-  const trips = createTripsFromMapPoints(mapPoints);
+  const trips = createTripsFromMapPoints(mapPoints, 30, tripExtraCapturesByDay);
   const tripsHtml = renderTripsPage(trips);
   const tripsDir = path.join(SITE_DIR, 'trips');
   if (!fs.existsSync(tripsDir)) {
