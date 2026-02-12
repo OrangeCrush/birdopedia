@@ -249,6 +249,37 @@ function formatDisplayTime(date) {
   }).format(date);
 }
 
+function toLocalDayKey(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDisplayDateLocal(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: '2-digit',
+    year: 'numeric'
+  }).format(date);
+}
+
+function formatDisplayTimeLocal(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(date);
+}
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -290,7 +321,10 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30, dayExtraCaptu
     if (!captureDateObj) {
       return;
     }
-    const dayKey = captureDateObj.toISOString().slice(0, 10);
+    const dayKey = toLocalDayKey(captureDateObj);
+    if (!dayKey) {
+      return;
+    }
     if (!byDay.has(dayKey)) {
       byDay.set(dayKey, []);
     }
@@ -467,8 +501,8 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30, dayExtraCaptu
 
       const firstCapture = captures[0];
       const lastCapture = captures[captures.length - 1];
-      const dateLabel = formatDisplayDate(firstCapture.captureDateObj);
-      const timeRange = `${formatDisplayTime(firstCapture.captureDateObj)} - ${formatDisplayTime(lastCapture.captureDateObj)} UTC`;
+      const dateLabel = formatDisplayDateLocal(firstCapture.captureDateObj);
+      const timeRange = `${formatDisplayTimeLocal(firstCapture.captureDateObj)} - ${formatDisplayTimeLocal(lastCapture.captureDateObj)} local`;
       const titleLabels = parks.slice();
       const titleCenters = selectedParkCentroids.slice();
       if (titleLabels.length) {
@@ -506,7 +540,7 @@ function createTripsFromMapPoints(mapPoints, clusterRadiusKm = 30, dayExtraCaptu
         bird: capture.bird,
         speciesHref: capture.speciesHref,
         filename: capture.filename,
-        captureDate: capture.captureDate,
+        captureDate: formatDisplayDateLocal(capture.captureDateObj || normalizeExifDate(capture.captureDateIso)),
         captureDateIso: capture.captureDateIso,
         lat: capture.lat,
         lon: capture.lon
@@ -661,6 +695,26 @@ async function getExif(imagePath) {
   }
 }
 
+async function getExifDateFields(imagePath) {
+  try {
+    const parsed = await exifr.parse(imagePath, {
+      pick: [
+        'SubSecDateTimeOriginal',
+        'DateTimeOriginal',
+        'SubSecCreateDate',
+        'CreateDate',
+        'OffsetTimeOriginal',
+        'OffsetTime',
+        'OffsetTimeDigitized'
+      ],
+      reviveValues: false
+    });
+    return parsed || {};
+  } catch (error) {
+    return {};
+  }
+}
+
 function firstNumber(...values) {
   for (const value of values) {
     if (Number.isFinite(value)) {
@@ -673,6 +727,7 @@ function firstNumber(...values) {
 async function collectImageMetadata(birdName, filename) {
   const imagePath = path.join(IMG_DIR, birdName, filename);
   const exif = await getExif(imagePath);
+  const exifDateFields = await getExifDateFields(imagePath);
   if (!exif || Object.keys(exif).length === 0) {
     console.warn(`EXIF: no metadata found for ${path.join(birdName, filename)}.`);
   }
@@ -693,13 +748,23 @@ async function collectImageMetadata(birdName, filename) {
     firstNumber(exif.GPSLongitude, exif.longitude)
   );
   const captureDateRaw =
+    exifDateFields.SubSecDateTimeOriginal ||
+    exifDateFields.DateTimeOriginal ||
+    exifDateFields.SubSecCreateDate ||
+    exifDateFields.CreateDate ||
     exif.SubSecDateTimeOriginal ||
     exif.DateTimeOriginal ||
     exif.SubSecCreateDate ||
     exif.CreateDate ||
     exif.FileModifyDate ||
     exif.ModifyDate;
-  const offset = exif.OffsetTimeOriginal || exif.OffsetTime || exif.OffsetTimeDigitized;
+  const offset =
+    exifDateFields.OffsetTimeOriginal ||
+    exifDateFields.OffsetTime ||
+    exifDateFields.OffsetTimeDigitized ||
+    exif.OffsetTimeOriginal ||
+    exif.OffsetTime ||
+    exif.OffsetTimeDigitized;
   const captureDateIso =
     captureDateRaw instanceof Date
       ? captureDateRaw.toISOString()
@@ -1828,7 +1893,7 @@ async function build() {
     const ebirdInfo = ebird.species?.[bird.name];
     bird.images.forEach((image) => {
       const captureDateObj = normalizeExifDate(image.captureDateRaw || image.captureDateIso);
-      const dayKey = captureDateObj ? captureDateObj.toISOString().slice(0, 10) : null;
+      const dayKey = captureDateObj ? toLocalDayKey(captureDateObj) : null;
       if (!image.gps) {
         if (dayKey) {
           if (!tripExtraCapturesByDay.has(dayKey)) {
