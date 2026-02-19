@@ -888,6 +888,34 @@ function renderLayout({ title, description, bodyClass, content, extraHead = '', 
 </html>`;
 }
 
+function getAuthorLine() {
+  return [config.authorName, config.authorLocation].filter(Boolean).join(' • ');
+}
+
+function renderEbirdLink() {
+  if (!config.ebirdProfileUrl) {
+    return '';
+  }
+  return `<a class="meta-link" href="${config.ebirdProfileUrl}">eBird profile</a>`;
+}
+
+function renderSiteNav(activePage) {
+  const links = [
+    { key: 'index', label: 'Home', href: '/birdopedia/index.html' },
+    { key: 'map', label: 'Field map', href: '/birdopedia/map/index.html' },
+    { key: 'gallery', label: 'Gallery', href: '/birdopedia/gallery/index.html' },
+    { key: 'trips', label: 'Trips', href: '/birdopedia/trips/index.html' }
+  ];
+  return links
+    .map((link) => {
+      if (link.key === activePage) {
+        return `<span aria-current="page">${link.label}</span>`;
+      }
+      return `<a class="meta-link" href="${link.href}">${link.label}</a>`;
+    })
+    .join(' • ');
+}
+
 function escapeAttr(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -931,10 +959,8 @@ function renderIndex(
     })
     .join('');
 
-  const authorLine = [config.authorName, config.authorLocation].filter(Boolean).join(' • ');
-  const ebirdLink = config.ebirdProfileUrl
-    ? `<a class="meta-link" href="${config.ebirdProfileUrl}">eBird profile</a>`
-    : '';
+  const authorLine = getAuthorLine();
+  const ebirdLink = renderEbirdLink();
   const bio = config.siteLede || config.authorBio || 'A growing field guide built from days in the field.';
   const featuredSection = featuredImages?.length
     ? `
@@ -989,7 +1015,10 @@ function renderIndex(
         <h1>Birdopedia</h1>
         <p class="lede">${bio}</p>
         <div class="hero-meta">
-          <span>${authorLine || 'Author information missing'} ${ebirdLink ? `• ${ebirdLink}` : ''} • <a class="meta-link" href="/birdopedia/map/index.html">Field map</a> • <a class="meta-link" href="/birdopedia/gallery/index.html">Gallery</a> • <a class="meta-link" href="/birdopedia/trips/index.html">Trips</a></span>
+          <span>${authorLine || 'Author information missing'}${ebirdLink ? ` • ${ebirdLink}` : ''}</span>
+        </div>
+        <p class="hero-nav">${renderSiteNav('index')}</p>
+        <div class="hero-meta">
           <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
       </div>
@@ -1275,7 +1304,7 @@ function renderBirdPage(bird, ebirdInfo) {
   const sourcesFootnote = sourceLinks.length
     ? ` • Sources: ${sourceLinks.join(' • ')}`
     : '';
-
+  const audioBlock = wikidataAudio ? `<div class="bird-audio bird-audio--panel">${wikidataAudio}</div>` : '';
   const profileSection = hasProfileItems || hasNarrative || summaryBlock
     ? `
       <div class="species-panel">
@@ -1286,6 +1315,7 @@ function renderBirdPage(bird, ebirdInfo) {
         <div class="profile-grid">${profileItems}${wikidataFacts}</div>
         ${narrativeBlocks}
         ${fallbackProfile}
+        ${audioBlock}
       </div>`
     : `
       <div class="species-panel">
@@ -1293,64 +1323,72 @@ function renderBirdPage(bird, ebirdInfo) {
           <h2>Species Profile</h2>
           <p class="empty-note">Add species profile data in data/ebird.json to enrich this page.</p>
         </div>
+        ${audioBlock}
       </div>`;
 
   const content = `
-    <header class="bird-hero">
-      <div class="bird-hero__summary">
-        <div class="page-nav">
-          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
-          ${bird.locationCount > 0 ? `<a class="map-link" data-map-link data-species="${escapeAttr(bird.name)}" href="/birdopedia/map/index.html?species=${encodeURIComponent(bird.name)}&focus=latest">View field map</a>` : ''}
-        </div>
-        <p class="eyebrow">${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'}</p>
+    <header class="site-hero page-hero">
+      <div class="site-hero__content">
+        <p class="eyebrow">Species Profile</p>
         <h1>${bird.name}</h1>
         <p class="lede">${profile.scientificName || 'Species profile pending.'}</p>
         <p class="species-code">Banding code: ${bandingCode || 'Unknown'}</p>
-        ${wikidataAudio ? `<div class="bird-audio">${wikidataAudio}</div>` : ''}
-      </div>
-      <div class="bird-hero__media">
-        <div class="carousel" data-count="${bird.images.length}">
-          ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="prev" aria-label="Previous image">‹</button>' : ''}
-          <div class="carousel__viewport media-frame zoomable">
-            ${carouselImages}
-            <span class="zoom-indicator" aria-hidden="true"></span>
-          </div>
-          ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="next" aria-label="Next image">›</button>' : ''}
-          ${dots ? `<div class="carousel__dots">${dots}</div>` : ''}
-          <p class="carousel__caption" data-caption>${bird.images[0]?.captureDate || ''} • ${bird.images[0]?.camera || ''} • ${bird.images[0]?.lens || ''}</p>
-          <div class="carousel__meta" data-carousel-meta>
-            <span data-meta="iso">ISO: ${bird.images[0]?.iso || 'Unknown'}</span>
-            <span data-meta="shutter">Shutter: ${bird.images[0]?.exposure || 'Unknown'}</span>
-            <span data-meta="aperture">Aperture: ${bird.images[0]?.aperture || 'Unknown'}</span>
-            <span data-meta="focal">Focal: ${bird.images[0]?.focalLength || 'Unknown'}</span>
-          </div>
-        </div>
-      </div>
-      <div class="bird-hero__details">
-        ${profileSection}
-        <div class="species-panel">
-          <div class="section-title">
-            <h2>Photo Collection Overview</h2>
-            <p>Photo capture coverage for this species.</p>
-          </div>
-          <div class="quick-facts">
-            <div><span>Latest capture</span><strong>${bird.latest || 'Unknown'}</strong></div>
-            <div><span>Earliest capture</span><strong>${bird.earliest || 'Unknown'}</strong></div>
-            <div><span>Locations</span><strong>${bird.locationCount} tagged</strong></div>
-          </div>
+        <p class="hero-nav">${renderSiteNav('')}</p>
+        <div class="hero-meta">
+          <span>
+            ${bird.images.length} photograph${bird.images.length === 1 ? '' : 's'} • ${bird.locationCount} tagged location${bird.locationCount === 1 ? '' : 's'}
+            ${bird.locationCount > 0 ? ` • <a class="meta-link map-link" data-map-link data-species="${escapeAttr(bird.name)}" href="/birdopedia/map/index.html?species=${encodeURIComponent(bird.name)}&focus=latest">View field map</a>` : ''}
+          </span>
         </div>
       </div>
     </header>
 
-    <section class="image-details">
-      <div class="section-title">
-        <h2>Image Details</h2>
-        <p>Metadata extracted from the camera files.</p>
-      </div>
-      <div class="image-grid">
-        ${imageCards}
-      </div>
-    </section>
+    <main class="bird-main">
+      <section class="bird-hero bird-hero--details-only">
+        <div class="bird-hero__media">
+          <div class="carousel" data-count="${bird.images.length}">
+            ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="prev" aria-label="Previous image">‹</button>' : ''}
+            <div class="carousel__viewport media-frame zoomable">
+              ${carouselImages}
+              <span class="zoom-indicator" aria-hidden="true"></span>
+            </div>
+            ${bird.images.length > 1 ? '<button class="carousel__btn" data-dir="next" aria-label="Next image">›</button>' : ''}
+            ${dots ? `<div class="carousel__dots">${dots}</div>` : ''}
+            <p class="carousel__caption" data-caption>${bird.images[0]?.captureDate || ''} • ${bird.images[0]?.camera || ''} • ${bird.images[0]?.lens || ''}</p>
+            <div class="carousel__meta" data-carousel-meta>
+              <span data-meta="iso">ISO: ${bird.images[0]?.iso || 'Unknown'}</span>
+              <span data-meta="shutter">Shutter: ${bird.images[0]?.exposure || 'Unknown'}</span>
+              <span data-meta="aperture">Aperture: ${bird.images[0]?.aperture || 'Unknown'}</span>
+              <span data-meta="focal">Focal: ${bird.images[0]?.focalLength || 'Unknown'}</span>
+            </div>
+          </div>
+        </div>
+        <div class="bird-hero__details">
+          ${profileSection}
+          <div class="species-panel">
+            <div class="section-title">
+              <h2>Photo Collection Overview</h2>
+              <p>Photo capture coverage for this species.</p>
+            </div>
+            <div class="quick-facts">
+              <div><span>Latest capture</span><strong>${bird.latest || 'Unknown'}</strong></div>
+              <div><span>Earliest capture</span><strong>${bird.earliest || 'Unknown'}</strong></div>
+              <div><span>Locations</span><strong>${bird.locationCount} tagged</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="image-details">
+        <div class="section-title">
+          <h2>Image Details</h2>
+          <p>Metadata extracted from the camera files.</p>
+        </div>
+        <div class="image-grid">
+          ${imageCards}
+        </div>
+      </section>
+    </main>
 
     <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
       <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
@@ -1390,21 +1428,22 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
     : '<p class="empty-note">No geotagged captures yet.</p>';
 
   const content = `
-    <header class="map-hero">
-      <div class="map-hero__content">
-        <div class="page-nav">
-          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
-        </div>
+    <header class="site-hero page-hero">
+      <div class="site-hero__content">
         <p class="eyebrow">Field Atlas</p>
         <h1>Flight Map</h1>
         <p class="lede">Trace each capture across the landscape, with every geotagged frame pinned to the places you’ve explored.</p>
         <p class="map-note">Built from GPS metadata embedded in each photo.</p>
+        <p class="hero-nav">${renderSiteNav('map')}</p>
         <div class="hero-meta">
           <span>${mapStats.totalGeoPhotos} geotagged photo${mapStats.totalGeoPhotos === 1 ? '' : 's'} • ${mapStats.totalGeoSpecies} species mapped</span>
           <span>${mapStats.earliest || 'Unknown'} → ${mapStats.latest || 'Unknown'}</span>
         </div>
       </div>
-      <div class="site-hero__stats">
+    </header>
+
+    <main class="map-main">
+      <section class="site-hero__stats page-stats">
         <div class="section-title">
           <h2>Map highlights</h2>
           <p>Quick look at the geotagged archive.</p>
@@ -1433,10 +1472,7 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
           <span class="stat__label">Distinct days mapped</span>
           <span class="stat__value">${mapStats.daysMapped}</span>
         </div>
-      </div>
-    </header>
-
-    <main class="map-main">
+      </section>
       <section class="map-panel">
         <div class="map-toolbar">
           <label class="family-field" for="map-species">
@@ -1506,14 +1542,12 @@ function renderGalleryPage(filters = { cameras: [], lenses: [] }) {
     .map((lens) => `<option value="${escapeAttr(lens)}">${escapeHtml(lens)}</option>`)
     .join('');
   const content = `
-    <header class="gallery-hero">
-      <div class="gallery-hero__content">
-        <div class="page-nav">
-          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
-        </div>
+    <header class="site-hero page-hero">
+      <div class="site-hero__content">
         <p class="eyebrow">Photo Archive</p>
         <h1>Gallery</h1>
         <p class="lede">An unbroken stream of field moments, curated for the images themselves.</p>
+        <p class="hero-nav">${renderSiteNav('gallery')}</p>
       </div>
     </header>
 
@@ -1667,16 +1701,20 @@ function renderTripsPage(trips = []) {
   }));
 
   const content = `
-    <header class="trips-hero">
-      <div class="trips-hero__content">
-        <div class="page-nav">
-          <a class="back-link" href="/birdopedia/index.html">← Back to index</a>
-        </div>
+    <header class="site-hero page-hero">
+      <div class="site-hero__content">
         <p class="eyebrow">Field Expeditions</p>
         <h1>Trips</h1>
         <p class="lede">Automatically grouped photo days based on nearby locations and shared capture dates.</p>
+        <p class="hero-nav">${renderSiteNav('trips')}</p>
+        <div class="hero-meta">
+          <span>${trips.length} trip${trips.length === 1 ? '' : 's'} • ${totalTripPhotos} photos • ${totalTripSpecies} species</span>
+        </div>
       </div>
-      <div class="trips-hero__stats site-hero__stats">
+    </header>
+
+    <main class="trips-main">
+      <section class="trips-hero__stats site-hero__stats page-stats">
         <div class="stat"><span class="stat__label">Detected trips</span><span class="stat__value">${trips.length}</span></div>
         <div class="stat"><span class="stat__label">Trip photos</span><span class="stat__value">${totalTripPhotos}</span></div>
         <div class="stat"><span class="stat__label">Species across trips</span><span class="stat__value">${totalTripSpecies}</span></div>
@@ -1684,10 +1722,7 @@ function renderTripsPage(trips = []) {
         <div class="stat"><span class="stat__label">Largest trip</span><span class="stat__value">${
           largestTrip ? `${largestTrip.dateLabel} (${largestTrip.imageCount})` : 'None yet'
         }</span></div>
-      </div>
-    </header>
-
-    <main class="trips-main">
+      </section>
       ${emptyState}
       <section class="trips-layout">
         <aside class="trips-nav" data-trip-nav>

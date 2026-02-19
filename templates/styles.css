@@ -116,6 +116,10 @@ a {
   align-items: center;
 }
 
+.page-hero {
+  padding-bottom: 2.25rem;
+}
+
 .site-hero__content {
   grid-area: content;
 }
@@ -131,6 +135,23 @@ a {
   gap: 1rem 2rem;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.hero-nav {
+  margin: 1rem 0 1.25rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.hero-nav [aria-current="page"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.hero-nav .meta-link {
+  font-weight: 700;
 }
 
 .site-hero__panel {
@@ -443,14 +464,27 @@ a {
   font-weight: 600;
 }
 
+.bird-main,
+.map-main,
+.trips-main,
+.gallery-main {
+  position: relative;
+}
+
 .bird-hero {
   display: grid;
   gap: 2rem;
-  padding: 3.5rem clamp(1.5rem, 4vw, 4rem) 2rem;
+  padding: 0 clamp(1.5rem, 4vw, 4rem) 2rem;
   align-items: start;
   grid-template-columns: 1fr;
   grid-template-areas:
     "summary"
+    "media"
+    "details";
+}
+
+.bird-hero--details-only {
+  grid-template-areas:
     "media"
     "details";
 }
@@ -1036,6 +1070,11 @@ body.preview-open {
       "details media";
   }
 
+  .bird-hero--details-only {
+    grid-template-columns: 1fr 1.1fr;
+    grid-template-areas: "details media";
+  }
+
   .map-main {
     grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
   }
@@ -1119,6 +1158,11 @@ body.preview-open {
   grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
   gap: 2rem;
   padding: 0 clamp(1.5rem, 4vw, 4rem) 4rem;
+}
+
+.page-stats {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .page-map .map-hero .site-hero__stats {
