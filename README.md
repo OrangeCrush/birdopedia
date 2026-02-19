@@ -1,68 +1,150 @@
 # Birdopedia
 
-A static, photography-first bird encyclopedia built from your own images.
+A static, photography-first bird website generated from your own images and metadata.
 
-## Getting Started
+Birdopedia is designed for photographers: add species folders and photos, run a data fetch + build, then deploy `public/` to any static host.
 
-1. Fill in your author settings in `config.json`.
+## What It Generates
 
-2. Add your eBird API key to `.env`:
+- A home/index page with all species, sorted alphabetically.
+- A species page per bird with eBird taxonomy and conservation context.
+- Wikipedia/Wikidata summary facts.
+- Rich image metadata (capture date/time, camera/lens, dimensions, file size, GPS-based location where available).
+- A field map view based on geotagged photos.
+- A cross-species gallery view.
+- A trips view inferred from clustered captures.
 
-   ```bash
-   EBIRD_API_TOKEN=your_key_here
-   ```
+Output is written under `public/`, including `public/index.html` and `public/birdopedia/**`.
 
-3. Install dependencies:
+## Screenshots
 
-   ```bash
-   npm install
-   ```
+Home page:
 
-4. Fetch data + build the pages:
+![Birdopedia home page](docs/screenshots/home.png)
 
-   ```bash
-   node scripts/fetch-data.js
-   node scripts/build.js
-   ```
+Species page:
 
-5. Run the local server:
+![Bird species page](docs/screenshots/species-page.png)
 
-   ```bash
-   node server.js
-   ```
+Field map page:
 
-Open `http://localhost:3000` in your browser.
+![Birdopedia field map page](docs/screenshots/map.png)
 
-## Generated Output
+## Quick Start
 
-`public/` is fully generated. You can delete it at any time and recreate it by running the build scripts. Source assets live in `templates/`.
+1. Install dependencies.
 
-## Adding a New Species
+```bash
+npm install
+```
 
-1. Create a folder under `public/img/` named exactly as the common name:
+2. Configure author/site metadata in `config.json` (or start from `sample.config.json`).
 
-   ```text
-   public/img/Red-breasted Nuthatch/
-   ```
+3. Create `.env` with at least your eBird API token:
 
-2. Add your photos into that folder.
+```bash
+EBIRD_API_TOKEN=your_key_here
+```
 
-3. Regenerate data and pages:
+Optional `.env` values:
 
-   ```bash
-   node scripts/fetch-ebird.js
-   node scripts/build.js
-   ```
+- `GEOCODE_EMAIL=you@example.com` for reverse geocoding attribution with Nominatim.
+- `PORT=3000` for local server port.
+- `DEPLOY_TARGET=user@host:/path/to/site` for `deploy.sh`.
+- `DEPLOY_DELETE=true` to delete remote files not present locally during deploy.
+- `DEPLOY_DRY_RUN=true` to preview deploy changes.
 
-If the folder name does not match an eBird common name, add a mapping in `data/ebird.overrides.json` (copy from `data/ebird.overrides.example.json`).
+4. Fetch external data and cache it in `data/*.json`.
 
-## Adding New Photos to an Existing Species
+```bash
+npm run fetch:data
+```
 
-1. Drop the new images into the existing species folder under `public/img/`.
-2. Rebuild the pages:
+5. Build the static site.
 
-   ```bash
-   node scripts/build.js
-   ```
+```bash
+npm run build
+```
 
-If you also want to refresh taxonomy + Wikidata details, run `node scripts/fetch-data.js` before rebuilding.
+6. Serve locally.
+
+```bash
+npm start
+```
+
+Open `http://localhost:3000`.
+
+## Content Workflow
+
+### Add A New Species
+
+1. Create a folder under `public/img/` named as the species common name.
+
+```text
+public/img/Red-breasted Nuthatch/
+```
+
+2. Add images (`.jpg`, `.jpeg`, `.png`, `.webp`).
+
+3. Refresh data and rebuild:
+
+```bash
+npm run fetch:data
+npm run build
+```
+
+If a folder name does not map cleanly to eBird, add an override in `data/ebird.overrides.json` under `byFolder`.
+
+### Add Photos To An Existing Species
+
+1. Drop the new files into the species folder in `public/img/`.
+2. Rebuild:
+
+```bash
+npm run build
+```
+
+If you want fresh eBird/Wikidata/Wikipedia/geocoding cache, run `npm run fetch:data` first.
+
+## Commands
+
+- `npm run fetch:data` runs `scripts/fetch-data.js` and updates `data/ebird.json`, `data/wikidata.json`, `data/wikipedia.json`, and `data/geocode.json`.
+- `npm run build` runs `scripts/build.js` and regenerates pages/assets in `public/`.
+- `npm start` runs `server.js` to serve `public/`.
+
+Useful flag:
+
+- `node scripts/fetch-data.js --hard` forces a full refresh instead of reusing cached entries.
+
+## Project Structure
+
+```text
+config.json               # Author/site config used in generated pages
+.env                      # API/deploy/local-server environment variables
+data/                     # Cached fetched data + overrides
+public/img/<Bird Name>/   # Source photos grouped by species
+templates/                # JS/CSS used by generated pages
+scripts/fetch-data.js     # Fetches eBird + Wikidata + Wikipedia + geocoding
+scripts/build.js          # Builds all static pages from images + cached data
+server.js                 # Local static file server
+deploy.sh                 # Rsync deploy helper for public/
+```
+
+## Deploy
+
+`deploy.sh` syncs `public/` to `DEPLOY_TARGET` via `rsync`:
+
+```bash
+./deploy.sh
+```
+
+Common deploy modes:
+
+- Safe preview: set `DEPLOY_DRY_RUN=true`.
+- Mirror remote to local output exactly: set `DEPLOY_DELETE=true`.
+
+## Notes
+
+- `public/` is generated output plus your source photo folders in `public/img/`.
+- Re-run `npm run build` any time photos or templates change.
+- Re-run `npm run fetch:data` when you want updated external species/location content.
