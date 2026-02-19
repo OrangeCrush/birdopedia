@@ -1009,18 +1009,15 @@ function renderIndex(
     : '';
 
   const content = `
-    <header class="site-hero">
+    <header class="site-hero site-hero--home">
       <div class="site-hero__content">
         <p class="eyebrow">Photographic Field Notes</p>
         <h1>Birdopedia</h1>
         <p class="lede">${bio}</p>
         <div class="hero-meta">
-          <span>${authorLine || 'Author information missing'}${ebirdLink ? ` • ${ebirdLink}` : ''}</span>
+          <span>${authorLine || 'Author information missing'}${ebirdLink ? ` • ${ebirdLink}` : ''} • ${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
         </div>
         <p class="hero-nav">${renderSiteNav('index')}</p>
-        <div class="hero-meta">
-          <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
-        </div>
       </div>
     </header>
 
@@ -1433,11 +1430,9 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
         <p class="eyebrow">Field Atlas</p>
         <h1>Flight Map</h1>
         <p class="lede">Trace each capture across the landscape, with every geotagged frame pinned to the places you’ve explored.</p>
-        <p class="map-note">Built from GPS metadata embedded in each photo.</p>
         <p class="hero-nav">${renderSiteNav('map')}</p>
         <div class="hero-meta">
           <span>${mapStats.totalGeoPhotos} geotagged photo${mapStats.totalGeoPhotos === 1 ? '' : 's'} • ${mapStats.totalGeoSpecies} species mapped</span>
-          <span>${mapStats.earliest || 'Unknown'} → ${mapStats.latest || 'Unknown'}</span>
         </div>
       </div>
     </header>

@@ -114,10 +114,15 @@ a {
   gap: 2rem;
   padding: 4rem clamp(1.5rem, 4vw, 4rem) 3rem;
   align-items: center;
+  min-height: 360px;
 }
 
 .page-hero {
   padding-bottom: 2.25rem;
+}
+
+.site-hero--home .hero-meta {
+  margin-bottom: 0.15rem;
 }
 
 .site-hero__content {
@@ -616,6 +621,10 @@ a {
   padding: 1.5rem;
   border-radius: 16px;
   box-shadow: 0 12px 28px rgba(34, 28, 20, 0.12);
+}
+
+.bird-hero__details .species-panel:first-child {
+  margin-top: 0;
 }
 
 .species-panel .section-title {
