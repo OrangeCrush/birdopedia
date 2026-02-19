@@ -24,7 +24,7 @@ Home page:
 
 Species page:
 
-![Bird species page](docs/screenshots/species-page.png)
+![Bald Eagle species page](docs/screenshots/species-page.png)
 
 Field map page:
 
