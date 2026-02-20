@@ -1441,36 +1441,6 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
     </header>
 
     <main class="map-main">
-      <section class="site-hero__stats page-stats">
-        <div class="section-title">
-          <h2>Map highlights</h2>
-          <p>Quick look at the geotagged archive.</p>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Mapped locations</span>
-          <span class="stat__value">${mapStats.mappedLocations}</span>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Top country</span>
-          <span class="stat__value">${mapStats.topCountry || 'Unknown'}</span>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Top city</span>
-          <span class="stat__value">${mapStats.topCity || 'Unknown'}</span>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Top state/region</span>
-          <span class="stat__value">${mapStats.topState || 'Unknown'}</span>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Most photographed species</span>
-          <span class="stat__value">${mapStats.topSpecies || 'Unknown'}</span>
-        </div>
-        <div class="stat">
-          <span class="stat__label">Distinct days mapped</span>
-          <span class="stat__value">${mapStats.daysMapped}</span>
-        </div>
-      </section>
       <section class="map-panel">
         <div class="map-toolbar">
           <label class="family-field" for="map-species">
@@ -1718,15 +1688,6 @@ function renderTripsPage(trips = []) {
     </header>
 
     <main class="trips-main">
-      <section class="trips-hero__stats site-hero__stats page-stats">
-        <div class="stat"><span class="stat__label">Detected trips</span><span class="stat__value">${trips.length}</span></div>
-        <div class="stat"><span class="stat__label">Trip photos</span><span class="stat__value">${totalTripPhotos}</span></div>
-        <div class="stat"><span class="stat__label">Species across trips</span><span class="stat__value">${totalTripSpecies}</span></div>
-        <div class="stat"><span class="stat__label">Trip days</span><span class="stat__value">${tripDays}</span></div>
-        <div class="stat"><span class="stat__label">Largest trip</span><span class="stat__value">${
-          largestTrip ? `${largestTrip.dateLabel} (${largestTrip.imageCount})` : 'None yet'
-        }</span></div>
-      </section>
       ${emptyState}
       <section class="trips-layout">
         <aside class="trips-nav" data-trip-nav>

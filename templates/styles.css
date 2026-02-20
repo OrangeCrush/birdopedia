@@ -1174,6 +1174,62 @@ body.preview-open {
   margin: 0;
 }
 
+.page-stats--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.85rem;
+  padding: 0.8rem;
+}
+
+.page-stats--compact .section-title {
+  margin: 0 0.25rem 0 0;
+  grid-column: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.page-stats--compact .section-title h2 {
+  margin: 0;
+  font-size: 1.06rem;
+}
+
+.page-stats--compact .section-title p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.page-stats--compact .stat {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  border-top: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.page-stats--compact .stat::before {
+  content: "•";
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
+.page-stats--compact .stat__label {
+  font-size: 0.88rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.page-stats--compact .stat__value {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 .page-map .map-hero .site-hero__stats {
   width: 100%;
   box-sizing: border-box;
