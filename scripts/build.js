@@ -1015,9 +1015,12 @@ function renderIndex(
         <h1>Birdopedia</h1>
         <p class="lede">${bio}</p>
         <div class="hero-meta">
-          <span>${authorLine || 'Author information missing'}${ebirdLink ? ` • ${ebirdLink}` : ''} • ${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
+          <span>${authorLine || 'Author information missing'}${ebirdLink ? ` • ${ebirdLink}` : ''}</span>
         </div>
         <p class="hero-nav">${renderSiteNav('index')}</p>
+        <div class="hero-meta">
+          <span>${collectionStats.totalSpecies} species • ${collectionStats.totalPhotos} photographs</span>
+        </div>
       </div>
     </header>
 
@@ -1529,7 +1532,10 @@ function renderMapPage(mapPayload, mapStats, speciesList = []) {
   });
 }
 
-function renderGalleryPage(filters = { cameras: [], lenses: [] }) {
+function renderGalleryPage(
+  filters = { cameras: [], lenses: [] },
+  stats = { totalPhotos: 0, totalSpecies: 0 }
+) {
   const cameraOptions = filters.cameras
     .map((camera) => `<option value="${escapeAttr(camera)}">${escapeHtml(camera)}</option>`)
     .join('');
@@ -1543,6 +1549,9 @@ function renderGalleryPage(filters = { cameras: [], lenses: [] }) {
         <h1>Gallery</h1>
         <p class="lede">An unbroken stream of field moments, curated for the images themselves.</p>
         <p class="hero-nav">${renderSiteNav('gallery')}</p>
+        <div class="hero-meta">
+          <span>${stats.totalPhotos} photo${stats.totalPhotos === 1 ? '' : 's'} • ${stats.totalSpecies} species</span>
+        </div>
       </div>
     </header>
 
@@ -2215,7 +2224,11 @@ async function build() {
       a.localeCompare(b, 'en', { sensitivity: 'base' })
     )
   };
-  const galleryHtml = renderGalleryPage(galleryFilters);
+  const galleryStats = {
+    totalPhotos: galleryItems.length,
+    totalSpecies: new Set(galleryItems.map((item) => item.bird)).size
+  };
+  const galleryHtml = renderGalleryPage(galleryFilters, galleryStats);
   const galleryDir = path.join(SITE_DIR, 'gallery');
   if (!fs.existsSync(galleryDir)) {
     fs.mkdirSync(galleryDir, { recursive: true });
