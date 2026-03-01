@@ -11,6 +11,7 @@ const TEMPLATES_DIR = path.join(ROOT, 'templates');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
 const EBIRD_PATH = path.join(ROOT, 'data', 'ebird.json');
 const WIKIPEDIA_PATH = path.join(ROOT, 'data', 'wikipedia.json');
+const XENOCANTO_PATH = path.join(ROOT, 'data', 'xenocanto.json');
 const GEOCODE_PATH = path.join(ROOT, 'data', 'geocode.json');
 
 function readJson(filePath, fallback) {
@@ -38,6 +39,10 @@ const wikipedia = readJson(WIKIPEDIA_PATH, {
     license: 'CC BY-SA 4.0',
     licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/'
   }
+});
+const xenocanto = readJson(XENOCANTO_PATH, {
+  species: {},
+  source: { name: 'Xeno-canto', url: 'https://xeno-canto.org' }
 });
 const geocodeCache = readJson(GEOCODE_PATH, {
   points: {},
@@ -1138,6 +1143,7 @@ function renderIndex(
 function renderBirdPage(bird, ebirdInfo) {
   const wikidataInfo = wikidata.species?.[bird.name] || {};
   const wikipediaInfo = wikipedia.species?.[bird.name] || {};
+  const xenocantoInfo = xenocanto.species?.[bird.name] || null;
   const profile = { ...(ebirdInfo || {}), ...wikidataInfo };
   const bandingCode = buildBandingCode(bird.name);
   const profileItems = [
@@ -1256,8 +1262,9 @@ function renderBirdPage(bird, ebirdInfo) {
     .map(([label, value]) => `<div class="profile-item"><span>${label}</span><strong>${value}</strong></div>`)
     .join('');
 
-  const wikidataAudio = profile.audio
-    ? `<audio class="bird-audio__player" controls src="${profile.audio}">Your browser does not support the audio element.</audio>`
+  const audioUrl = xenocantoInfo?.audioUrl || null;
+  const audioPlayer = audioUrl
+    ? `<audio class="bird-audio__player" controls preload="metadata" src="${escapeAttr(audioUrl)}">Your browser does not support the audio element.</audio>`
     : '';
 
   const hasProfileItems = Boolean(profileItems);
@@ -1300,11 +1307,14 @@ function renderBirdPage(bird, ebirdInfo) {
       `<a class="meta-link" href="${wikiUrl}" target="_blank" rel="noopener noreferrer">${wikiLabel}</a> (${license})`
     );
   }
+  if (audioUrl && xenocanto.source?.url) {
+    sourceLinks.push(`<a class="meta-link" href="${xenocanto.source.url}" target="_blank" rel="noopener noreferrer">${xenocanto.source.name || 'Xeno-canto'}</a>`);
+  }
 
   const sourcesFootnote = sourceLinks.length
     ? ` • Sources: ${sourceLinks.join(' • ')}`
     : '';
-  const audioBlock = wikidataAudio ? `<div class="bird-audio bird-audio--panel">${wikidataAudio}</div>` : '';
+  const audioBlock = audioPlayer ? `<div class="bird-audio bird-audio--panel">${audioPlayer}</div>` : '';
   const profileSection = hasProfileItems || hasNarrative || summaryBlock
     ? `
       <div class="species-panel">

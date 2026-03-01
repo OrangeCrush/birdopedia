@@ -9,6 +9,7 @@ const DATA_DIR = path.join(ROOT, 'data');
 const EBIRD_PATH = path.join(DATA_DIR, 'ebird.json');
 const WIKIDATA_PATH = path.join(DATA_DIR, 'wikidata.json');
 const WIKIPEDIA_PATH = path.join(DATA_DIR, 'wikipedia.json');
+const XENOCANTO_PATH = path.join(DATA_DIR, 'xenocanto.json');
 const GEOCODE_PATH = path.join(DATA_DIR, 'geocode.json');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'ebird.overrides.json');
 const ENV_PATH = path.join(ROOT, '.env');
@@ -469,6 +470,117 @@ function normalizeName(value) {
     .trim();
 }
 
+function normalizeXenoCantoTagToken(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z-]/g, '');
+}
+
+function escapeXenoCantoQuotedValue(value) {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeXenoCantoUrl(value) {
+  if (!value) {
+    return null;
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`;
+  }
+  if (trimmed.startsWith('/')) {
+    return `https://www.xeno-canto.org${trimmed}`;
+  }
+  return `https://www.xeno-canto.org/${trimmed.replace(/^\/+/, '')}`;
+}
+
+function normalizeXenoCantoRecordingUrl(value, id) {
+  if (value) {
+    return normalizeXenoCantoUrl(value);
+  }
+  if (id) {
+    return `https://www.xeno-canto.org/${id}`;
+  }
+  return null;
+}
+
+function scoreXenoCantoQuality(value) {
+  const token = String(value || '').trim().toUpperCase();
+  const scores = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+  return scores[token] || 0;
+}
+
+function scoreXenoCantoFormat(recording) {
+  const fileName = String(recording?.['file-name'] || '').toLowerCase();
+  const normalized = fileName || String(recording?.file || '').toLowerCase();
+  if (normalized.endsWith('.mp3') || normalized.includes('.mp3?')) {
+    return 2;
+  }
+  if (normalized.endsWith('.ogg') || normalized.includes('.ogg?')) {
+    return 1;
+  }
+  return 0;
+}
+
+function pickBestXenoCantoRecording(recordings) {
+  if (!Array.isArray(recordings) || recordings.length === 0) {
+    return null;
+  }
+  const ranked = recordings
+    .map((recording) => {
+      if (!recording || !recording.file) {
+        return null;
+      }
+      return {
+        recording,
+        qualityScore: scoreXenoCantoQuality(recording.q),
+        formatScore: scoreXenoCantoFormat(recording)
+      };
+    })
+    .filter(Boolean);
+
+  if (!ranked.length) {
+    return null;
+  }
+
+  ranked.sort((a, b) => {
+    if (b.formatScore !== a.formatScore) {
+      return b.formatScore - a.formatScore;
+    }
+    if (b.qualityScore !== a.qualityScore) {
+      return b.qualityScore - a.qualityScore;
+    }
+    const aId = Number.parseInt(a.recording.id, 10);
+    const bId = Number.parseInt(b.recording.id, 10);
+    if (Number.isFinite(bId) && Number.isFinite(aId) && bId !== aId) {
+      return bId - aId;
+    }
+    return 0;
+  });
+
+  const selected = ranked[0].recording;
+  return {
+    audioUrl: normalizeXenoCantoUrl(selected.file),
+    recordingUrl: normalizeXenoCantoRecordingUrl(selected.url, selected.id),
+    recordist: selected.rec ? String(selected.rec).trim() : null,
+    licenseUrl: normalizeXenoCantoUrl(selected.lic),
+    quality: selected.q ? String(selected.q).trim() : null,
+    length: selected.length ? String(selected.length).trim() : null,
+    xcId: selected.id ? String(selected.id).trim() : null
+  };
+}
+
 function requestJson(url, headers = {}) {
   return new Promise((resolve, reject) => {
     https
@@ -483,9 +595,15 @@ function requestJson(url, headers = {}) {
             return;
           }
           try {
-            resolve(JSON.parse(data));
+            const payload = JSON.parse(data);
+            if (payload && typeof payload === 'object' && payload.error) {
+              reject(new Error(`API error: ${payload.message || payload.error}`));
+              return;
+            }
+            resolve(payload);
           } catch (error) {
-            reject(error);
+            const snippet = String(data).slice(0, 180).replace(/\s+/g, ' ').trim();
+            reject(new Error(`Invalid JSON response: ${snippet || '(empty response)'}`));
           }
         });
       })
@@ -1252,6 +1370,124 @@ async function fetchWikipedia(birdFolders, ebirdPayload) {
   };
 }
 
+function buildXenoCantoQuery(commonName, scientificName, quality, apiKey) {
+  if (!apiKey) {
+    return null;
+  }
+  const terms = [];
+  const scientificParts = String(scientificName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (scientificParts.length >= 2) {
+    const genus = normalizeXenoCantoTagToken(scientificParts[0]);
+    const species = normalizeXenoCantoTagToken(scientificParts[1]);
+    if (genus && species) {
+      terms.push(`gen:${genus}`, `sp:${species}`);
+    }
+  }
+
+  if (!terms.length) {
+    const englishName = escapeXenoCantoQuotedValue(commonName);
+    if (!englishName) {
+      return null;
+    }
+    terms.push(`en:"=${englishName}"`);
+  }
+
+  terms.push('grp:birds');
+  if (quality) {
+    terms.push(`q:${String(quality).trim().toUpperCase()}`);
+  }
+
+  const query = terms.join(' ');
+  return `https://xeno-canto.org/api/3/recordings?query=${encodeURIComponent(query)}&key=${encodeURIComponent(apiKey)}`;
+}
+
+function buildXenoCantoEnglishQuery(commonName, quality, apiKey) {
+  if (!apiKey) {
+    return null;
+  }
+  const englishName = escapeXenoCantoQuotedValue(commonName);
+  if (!englishName) {
+    return null;
+  }
+  const terms = [`en:"=${englishName}"`, 'grp:birds'];
+  if (quality) {
+    terms.push(`q:${String(quality).trim().toUpperCase()}`);
+  }
+  const query = terms.join(' ');
+  return `https://xeno-canto.org/api/3/recordings?query=${encodeURIComponent(query)}&key=${encodeURIComponent(apiKey)}`;
+}
+
+async function fetchXenoCanto(birdFolders, ebirdPayload, apiKey) {
+  const existing = readJson(XENOCANTO_PATH, { species: {}, source: { name: 'Xeno-canto', url: 'https://xeno-canto.org' } });
+  const existingSpecies = existing.species || {};
+  const payload = {
+    ...existing,
+    species: { ...existingSpecies },
+    source: existing.source || { name: 'Xeno-canto', url: 'https://xeno-canto.org' }
+  };
+
+  let fetchedCount = 0;
+  let reusedCount = 0;
+  const trimmedApiKey = String(apiKey || '').trim();
+
+  if (!trimmedApiKey) {
+    console.warn('Xeno-canto: missing XENOCANTO_API_KEY; skipping fetch and reusing cached records.');
+    reusedCount = birdFolders.length;
+    return { payload, fetchedCount, reusedCount };
+  }
+
+  for (const folderName of birdFolders) {
+    if (!HARD_REFRESH && Object.prototype.hasOwnProperty.call(existingSpecies, folderName)) {
+      reusedCount += 1;
+      continue;
+    }
+    const scientificName = ebirdPayload.species?.[folderName]?.scientificName || null;
+    const queryCandidates = [];
+    const pushQuery = (url) => {
+      if (url && !queryCandidates.includes(url)) {
+        queryCandidates.push(url);
+      }
+    };
+
+    // Prefer taxonomy query first, then relax quality. If no match, fall back to English name query.
+    pushQuery(buildXenoCantoQuery(folderName, scientificName, 'A', trimmedApiKey));
+    pushQuery(buildXenoCantoQuery(folderName, scientificName, null, trimmedApiKey));
+    if (scientificName) {
+      pushQuery(buildXenoCantoEnglishQuery(folderName, 'A', trimmedApiKey));
+      pushQuery(buildXenoCantoEnglishQuery(folderName, null, trimmedApiKey));
+    }
+
+    if (!queryCandidates.length) {
+      payload.species[folderName] = null;
+      continue;
+    }
+    try {
+      console.log(`Xeno-canto: fetching ${folderName}...`);
+      fetchedCount += 1;
+      let bestRecording = null;
+      for (const queryUrl of queryCandidates) {
+        const response = await requestJson(queryUrl, { 'User-Agent': 'birdopedia/1.0 (local script)' });
+        bestRecording = pickBestXenoCantoRecording(response?.recordings || []);
+        if (bestRecording) {
+          break;
+        }
+      }
+      payload.species[folderName] = bestRecording;
+    } catch (error) {
+      console.warn(`Xeno-canto request failed for ${folderName}: ${error.message || error}`);
+      payload.species[folderName] = null;
+    }
+    await sleep(250);
+  }
+
+  payload.fetchedCount = fetchedCount;
+  return { payload, fetchedCount, reusedCount };
+}
+
 async function fetchGeocodes(birdFolders, email) {
   const cache = readJson(GEOCODE_PATH, {
     points: {},
@@ -1327,6 +1563,7 @@ async function main() {
   const env = readEnvFile(ENV_PATH);
   const token = process.env.EBIRD_API_TOKEN || env.EBIRD_API_TOKEN;
   const geocodeEmail = process.env.GEOCODE_EMAIL || env.GEOCODE_EMAIL;
+  const xenoCantoApiKey = process.env.XENOCANTO_API_KEY || env.XENOCANTO_API_KEY;
 
   const ebirdResult = await fetchEbirdSpecies(token);
   const ebirdPayload = ebirdResult.payload;
@@ -1354,6 +1591,19 @@ async function main() {
   }
 
   const birdFolders = listBirdFolders();
+  const xenoCantoResult = await fetchXenoCanto(birdFolders, ebirdPayload, xenoCantoApiKey);
+  const xenoCantoPayload = xenoCantoResult.payload;
+  const shouldWriteXenoCanto =
+    HARD_REFRESH || xenoCantoResult.fetchedCount > 0 || !fs.existsSync(XENOCANTO_PATH);
+  if (shouldWriteXenoCanto) {
+    fs.writeFileSync(XENOCANTO_PATH, JSON.stringify(xenoCantoPayload, null, 2));
+    console.log(
+      `Wrote Xeno-canto recordings for ${Object.keys(xenoCantoPayload.species || {}).length} species (fetched ${xenoCantoResult.fetchedCount}, reused ${xenoCantoResult.reusedCount}).`
+    );
+  } else {
+    console.log(`No Xeno-canto updates; reused ${xenoCantoResult.reusedCount} cached species.`);
+  }
+
   const wikipediaResult = await fetchWikipedia(birdFolders, ebirdPayload);
   const wikipediaPayload = wikipediaResult.payload;
   const shouldWriteWikipedia =
