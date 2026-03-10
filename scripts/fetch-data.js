@@ -1523,10 +1523,7 @@ async function fetchGeocodes(birdFolders, email) {
       return true;
     }
     const entry = cache.points[key];
-    if (!entry) {
-      return true;
-    }
-    return !entry.park && !entry.site;
+    return !entry;
   });
   let fetchedCount = 0;
   let reusedCount = Object.keys(cache.points).length;
@@ -1538,8 +1535,7 @@ async function fetchGeocodes(birdFolders, email) {
       if (!target) {
         continue;
       }
-      const existing = cache.points[key];
-      const forceRefresh = HARD_REFRESH || (Boolean(existing) && !existing.park && !existing.site);
+      const forceRefresh = HARD_REFRESH;
       const result = await reverseGeocode(target.lat, target.lon, email, cache, { forceRefresh });
       if (result === 'fetched') {
         fetchedCount += 1;
