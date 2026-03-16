@@ -54,101 +54,27 @@
   });
 
   const preview = document.querySelector('[data-preview]');
-  const previewImage = preview ? preview.querySelector('.preview-modal__image') : null;
-  const closeButton = preview ? preview.querySelector('[data-preview-close]') : null;
-  const previewPrev = preview ? preview.querySelector('[data-preview-dir="prev"]') : null;
-  const previewNext = preview ? preview.querySelector('[data-preview-dir="next"]') : null;
-  let previewState = null;
-
-  const setPreviewImage = (img) => {
-    if (!previewImage || !img) {
-      return;
+  const previewController = window.Birdopedia?.createPreviewController
+    ? window.Birdopedia.createPreviewController({ preview })
+    : null;
+  const getPreviewItemFromImage = (img) => {
+    if (!img) {
+      return null;
     }
-    previewImage.src = img.currentSrc || img.src;
-    previewImage.alt = img.alt || 'Photo preview';
-  };
-
-  const openPreview = (img, state) => {
-    if (!preview || !previewImage || !img) {
-      return;
-    }
-    previewState = state || null;
-    setPreviewImage(img);
-    preview.classList.add('is-active');
-    preview.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('preview-open');
-    if (previewPrev && previewNext) {
-      const hideNav = !previewState || previewState.count <= 1;
-      previewPrev.toggleAttribute('hidden', hideNav);
-      previewNext.toggleAttribute('hidden', hideNav);
-    }
-  };
-
-  const closePreview = () => {
-    if (!preview || !previewImage) {
-      return;
-    }
-    preview.classList.remove('is-active');
-    preview.setAttribute('aria-hidden', 'true');
-    previewImage.removeAttribute('src');
-    document.body.classList.remove('preview-open');
-    previewState = null;
-  };
-
-  const stepPreview = (dir) => {
-    if (!previewState) {
-      return;
-    }
-    if (previewState.count <= 1) {
-      return;
-    }
-    const { getActive, update } = previewState;
-    const active = getActive();
-    if (!active) {
-      return;
-    }
-    update(dir === 'next' ? active.index + 1 : active.index - 1);
-    const refreshed = getActive();
-    if (refreshed?.img) {
-      setPreviewImage(refreshed.img);
-    }
-  };
-
-  if (preview) {
-    preview.addEventListener('click', (event) => {
-      if (event.target === preview || event.target === closeButton) {
-        closePreview();
+    return {
+      src: img.currentSrc || img.src,
+      alt: img.alt || 'Photo preview',
+      meta: {
+        aperture: img.dataset.aperture || '',
+        shutter: img.dataset.shutter || '',
+        iso: img.dataset.iso || '',
+        focal: img.dataset.focal || '',
+        captureDate: formatLocal(img.dataset.captionDate),
+        camera: img.dataset.captionCamera || '',
+        lens: img.dataset.captionLens || ''
       }
-    });
-  }
-
-  if (closeButton) {
-    closeButton.addEventListener('click', closePreview);
-  }
-  if (previewPrev) {
-    previewPrev.addEventListener('click', () => stepPreview('prev'));
-  }
-  if (previewNext) {
-    previewNext.addEventListener('click', () => stepPreview('next'));
-  }
-
-  document.addEventListener('keydown', (event) => {
-    if (!preview?.classList.contains('is-active')) {
-      return;
-    }
-    if (event.key === 'Escape') {
-      closePreview();
-      return;
-    }
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      stepPreview('prev');
-    }
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      stepPreview('next');
-    }
-  });
+    };
+  };
 
   carousels.forEach((carousel) => {
     const images = Array.from(carousel.querySelectorAll('.carousel__image'));
@@ -222,7 +148,7 @@
     }
 
     setMeta(images[index]);
-    const getActive = () => ({ img: images[index], index });
+    const getActive = () => images[index] || null;
 
     carousel.addEventListener('click', (event) => {
       const target = event.target;
@@ -241,7 +167,7 @@
       }
     });
 
-    if (preview && viewport) {
+    if (previewController && viewport) {
       viewport.addEventListener('click', (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
@@ -250,16 +176,17 @@
         if (target.closest('.carousel__btn') || target.closest('.carousel__dot')) {
           return;
         }
-        const active = images[index];
-        if (active) {
-          openPreview(active, { getActive, update, count: images.length });
-        }
+        previewController.open({
+          count: images.length,
+          getItem: () => getPreviewItemFromImage(getActive()),
+          step: (dir) => update(dir === 'next' ? index + 1 : index - 1)
+        });
       });
     }
   });
 
   const detailGrid = document.querySelector('.image-details .image-grid');
-  if (preview && detailGrid) {
+  if (previewController && detailGrid) {
     const detailImages = Array.from(detailGrid.querySelectorAll('.image-card__thumb img'));
     let detailIndex = 0;
 
@@ -270,7 +197,7 @@
       detailIndex = (nextIndex + detailImages.length) % detailImages.length;
     };
 
-    const getDetailActive = () => ({ img: detailImages[detailIndex], index: detailIndex });
+    const getDetailActive = () => detailImages[detailIndex] || null;
 
     detailGrid.addEventListener('click', (event) => {
       const target = event.target;
@@ -290,7 +217,11 @@
         return;
       }
       updateDetail(clickedIndex);
-      openPreview(img, { getActive: getDetailActive, update: updateDetail, count: detailImages.length });
+      previewController.open({
+        count: detailImages.length,
+        getItem: () => getPreviewItemFromImage(getDetailActive()),
+        step: (dir) => updateDetail(dir === 'next' ? detailIndex + 1 : detailIndex - 1)
+      });
     });
   }
 

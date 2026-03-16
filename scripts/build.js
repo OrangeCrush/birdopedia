@@ -595,6 +595,12 @@ function createTripsFromMapPoints(
         filename: capture.filename,
         captureDate: formatDisplayDateLocal(capture.captureDateObj || normalizeExifDate(capture.captureDateIso)),
         captureDateIso: capture.captureDateIso,
+        camera: capture.camera,
+        lens: capture.lens,
+        aperture: capture.aperture,
+        exposure: capture.exposure,
+        iso: capture.iso,
+        focalLength: capture.focalLength,
         lat: capture.lat,
         lon: capture.lon
       }));
@@ -891,6 +897,87 @@ function renderLayout({ title, description, bodyClass, content, extraHead = '', 
     ${extraScripts}
   </body>
 </html>`;
+}
+
+function renderPreviewModal({ showNav = true, metaHtml = '' } = {}) {
+  return `
+    <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
+      <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
+      ${showNav ? '<button class="preview-modal__nav" type="button" data-preview-dir="prev" aria-label="Previous photo">‹</button>' : ''}
+      <img class="preview-modal__image" alt="" />
+      ${showNav ? '<button class="preview-modal__nav" type="button" data-preview-dir="next" aria-label="Next photo">›</button>' : ''}
+      <aside class="preview-modal__info" data-preview-info hidden>
+        <div class="preview-modal__stats" data-preview-stats hidden>
+          <div class="preview-stat" data-preview-field="aperture" hidden>
+            <span class="preview-stat__icon" aria-hidden="true">
+              <svg viewBox="0 0 623.6 623.6" focusable="false" class="preview-stat__icon-svg preview-stat__icon-svg--aperture">
+                <path fill="none" stroke="currentColor" stroke-width="36" stroke-miterlimit="10" d="M437.1,239.5c-18.6-14-38.9-27.4-60.5-39.9
+	c-21.7-12.5-43.4-23.3-64.8-32.5c-35.5-15.2-70-25.6-101.6-31.3c-68.6-12.2-123.3-1.4-143.9,34.2l0,0
+	c49-84.7,140.6-141.7,245.5-141.7c41.2,0,77.9,42,101.6,107.5C424.3,166,432.5,201.1,437.1,239.5z"/>
+                <path fill="none" stroke="currentColor" stroke-width="36" stroke-miterlimit="10" d="M515,311.8c-20.7,24.5-47,49.2-77.9,72.4
+	c2.8-23.1,4.3-47.3,4.3-72.4s-1.5-49.3-4.3-72.4c-4.6-38.3-12.8-73.5-23.7-103.6C389.7,70.3,353,28.3,311.8,28.3
+	c104.9,0,196.5,57,245.5,141.7l0,0C577.9,205.7,559.8,258.5,515,311.8z"/>
+                <path fill="none" stroke="currentColor" stroke-width="36" stroke-miterlimit="10" d="M595.3,311.8c0,51.6-13.8,100-37.9,141.8l0,0
+	c-20.6,35.7-75.3,46.4-143.9,34.2c-31.6-5.6-66.1-16.1-101.6-31.3c21.4-9.1,43.1-20,64.8-32.5c21.7-12.5,41.9-25.9,60.5-39.9
+	c30.9-23.2,57.2-47.8,77.9-72.4c44.8-53.3,62.9-106.1,42.3-141.7l0,0C581.5,211.8,595.3,260.2,595.3,311.8z"/>
+                <path fill="none" stroke="currentColor" stroke-width="36" stroke-miterlimit="10" d="M557.3,453.6c-49,84.7-140.6,141.7-245.5,141.7
+	c-41.2,0-77.9-42-101.6-107.5c-10.9-30.2-19.1-65.3-23.7-103.6c18.6,14,38.9,27.4,60.5,39.9c21.7,12.5,43.4,23.4,64.8,32.5
+	c35.5,15.2,70,25.7,101.6,31.3C482,500,536.7,489.2,557.3,453.6L557.3,453.6z"/>
+                <path fill="none" stroke="currentColor" stroke-width="36" stroke-miterlimit="10" d="M311.8,595.3c-104.9,0-196.5-57-245.5-141.7l0,0
+	c-20.6-35.7-2.5-88.4,42.3-141.7c20.7-24.5,47-49.2,77.9-72.4c-2.8,23.1-4.3,47.3-4.3,72.4s1.5,49.3,4.3,72.4
+	c4.6,38.3,12.8,73.5,23.7,103.6C234,553.3,270.6,595.3,311.8,595.3z"/>
+                <path fill="none" stroke="currentColor" stroke-width="36" stroke-miterlimit="10" d="M311.8,167.1c-21.4,9.1-43.1,20-64.8,32.5
+	c-21.7,12.5-41.9,25.9-60.5,39.9c-30.9,23.2-57.2,47.8-77.9,72.4c-44.8,53.3-62.9,106.1-42.3,141.7l0,0
+	c-24.1-41.7-37.9-90.1-37.9-141.8s13.8-100,37.9-141.8l0,0c20.6-35.7,75.3-46.4,143.9-34.2C241.8,141.5,276.3,151.9,311.8,167.1z"/>
+              </svg>
+            </span>
+            <span class="preview-stat__text">
+              <span class="preview-stat__label">Aperture</span>
+              <span class="preview-stat__value" data-preview-value="aperture"></span>
+            </span>
+          </div>
+          <div class="preview-stat" data-preview-field="shutter" hidden>
+            <span class="preview-stat__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+                <path d="M12 7.5v5l3.3 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+            <span class="preview-stat__text">
+              <span class="preview-stat__label">Shutter</span>
+              <span class="preview-stat__value" data-preview-value="shutter"></span>
+            </span>
+          </div>
+          <div class="preview-stat" data-preview-field="iso" hidden>
+            <span class="preview-stat__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <rect x="4.5" y="6" width="15" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+                <circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+                <path d="M8 6V4.5M12 6V4.5M16 6V4.5M8 19.5V18M12 19.5V18M16 19.5V18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+              </svg>
+            </span>
+            <span class="preview-stat__text">
+              <span class="preview-stat__label">ISO</span>
+              <span class="preview-stat__value" data-preview-value="iso"></span>
+            </span>
+          </div>
+          <div class="preview-stat" data-preview-field="focal" hidden>
+            <span class="preview-stat__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M4.5 9.5h7l2-2h6v9h-6l-2-2h-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+                <circle cx="8.8" cy="12" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+              </svg>
+            </span>
+            <span class="preview-stat__text">
+              <span class="preview-stat__label">Focal</span>
+              <span class="preview-stat__value" data-preview-value="focal"></span>
+            </span>
+          </div>
+        </div>
+      </aside>
+      ${metaHtml}
+    </div>
+  `;
 }
 
 function getAuthorLine() {
@@ -1400,12 +1487,7 @@ function renderBirdPage(bird, ebirdInfo) {
       </section>
     </main>
 
-    <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
-      <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
-      ${bird.images.length > 1 ? '<button class="preview-modal__nav" type="button" data-preview-dir="prev" aria-label="Previous photo">‹</button>' : ''}
-      <img class="preview-modal__image" alt="" />
-      ${bird.images.length > 1 ? '<button class="preview-modal__nav" type="button" data-preview-dir="next" aria-label="Next photo">›</button>' : ''}
-    </div>
+    ${renderPreviewModal({ showNav: bird.images.length > 1 })}
 
     <footer class="site-footer">
       <span>${config.authorName || 'The photographer'} • ${bird.images.length} frames of ${bird.name}${sourcesFootnote}</span>
@@ -1416,7 +1498,7 @@ function renderBirdPage(bird, ebirdInfo) {
     description: `Photography and field notes for ${bird.name}.`,
     bodyClass: 'page-bird',
     content,
-    extraScripts: '<script src="/birdopedia/bird.js"></script>'
+    extraScripts: '<script src="/birdopedia/preview.js"></script><script src="/birdopedia/bird.js"></script>'
   });
 }
 
@@ -1565,12 +1647,7 @@ function renderGalleryPage(
       <button class="gallery-load" type="button" data-gallery-load>Load more</button>
     </main>
 
-    <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
-      <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
-      <button class="preview-modal__nav" type="button" data-preview-dir="prev" aria-label="Previous photo">‹</button>
-      <img class="preview-modal__image" alt="" />
-      <button class="preview-modal__nav" type="button" data-preview-dir="next" aria-label="Next photo">›</button>
-    </div>
+    ${renderPreviewModal({ showNav: true })}
   `;
 
   return renderLayout({
@@ -1578,7 +1655,7 @@ function renderGalleryPage(
     description: 'A continuous gallery of bird photography.',
     bodyClass: 'page-gallery',
     content,
-    extraScripts: '<script src="/birdopedia/gallery.js"></script>'
+    extraScripts: '<script src="/birdopedia/preview.js"></script><script src="/birdopedia/gallery.js"></script>'
   });
 }
 
@@ -1679,6 +1756,12 @@ function renderTripsPage(trips = []) {
       src: image.src,
       bird: image.bird,
       captureDate: image.captureDate,
+      camera: image.camera,
+      lens: image.lens,
+      aperture: image.aperture,
+      exposure: image.exposure,
+      iso: image.iso,
+      focalLength: image.focalLength,
       speciesHref: image.speciesHref,
       filename: image.filename
     }))
@@ -1712,17 +1795,7 @@ function renderTripsPage(trips = []) {
       </section>
     </main>
 
-    <div class="preview-modal" data-preview role="dialog" aria-modal="true" aria-hidden="true">
-      <button class="preview-modal__close" type="button" data-preview-close aria-label="Close preview">×</button>
-      <button class="preview-modal__nav" type="button" data-preview-dir="prev" aria-label="Previous photo">‹</button>
-      <img class="preview-modal__image" alt="" />
-      <button class="preview-modal__nav" type="button" data-preview-dir="next" aria-label="Next photo">›</button>
-      <div class="trip-preview__meta">
-        <strong data-preview-bird></strong>
-        <span data-preview-date></span>
-        <a class="meta-link" data-preview-link href="#">Open species page</a>
-      </div>
-    </div>
+    ${renderPreviewModal({ showNav: true })}
 
     <footer class="site-footer">
       <span>${config.authorName || 'The photographer'} • ${trips.length} trip${trips.length === 1 ? '' : 's'} discovered from field metadata.</span>
@@ -1736,7 +1809,7 @@ function renderTripsPage(trips = []) {
     description: 'Trip groupings inferred from date and geotag proximity.',
     bodyClass: 'page-trips',
     content,
-    extraScripts: '<script src="/birdopedia/trips.js"></script>'
+    extraScripts: '<script src="/birdopedia/preview.js"></script><script src="/birdopedia/trips.js"></script>'
   });
 }
 
@@ -1752,6 +1825,7 @@ async function build() {
   const scriptSource = path.join(TEMPLATES_DIR, 'bird.js');
   const indexScriptSource = path.join(TEMPLATES_DIR, 'index.js');
   const mapScriptSource = path.join(TEMPLATES_DIR, 'map.js');
+  const previewScriptSource = path.join(TEMPLATES_DIR, 'preview.js');
   const galleryScriptSource = path.join(TEMPLATES_DIR, 'gallery.js');
   const tripsScriptSource = path.join(TEMPLATES_DIR, 'trips.js');
   if (fs.existsSync(stylesSource)) {
@@ -1766,13 +1840,15 @@ async function build() {
   if (fs.existsSync(mapScriptSource)) {
     fs.copyFileSync(mapScriptSource, path.join(SITE_DIR, 'map.js'));
   }
+  if (fs.existsSync(previewScriptSource)) {
+    fs.copyFileSync(previewScriptSource, path.join(SITE_DIR, 'preview.js'));
+  }
   if (fs.existsSync(galleryScriptSource)) {
     fs.copyFileSync(galleryScriptSource, path.join(SITE_DIR, 'gallery.js'));
   }
   if (fs.existsSync(tripsScriptSource)) {
     fs.copyFileSync(tripsScriptSource, path.join(SITE_DIR, 'trips.js'));
   }
-
   const allBirds = listBirds();
   const avifCandidates = allBirds.flatMap((birdName) =>
     listImages(birdName)
@@ -2018,6 +2094,7 @@ async function build() {
             aperture: image.aperture,
             exposure: image.exposure,
             iso: image.iso,
+            focalLength: image.focalLength,
             family: ebirdInfo?.family || null,
             status: ebirdInfo?.status || wikidata.species?.[bird.name]?.conservationStatus || null,
             locationLabel: null,
@@ -2048,6 +2125,7 @@ async function build() {
         aperture: image.aperture,
         exposure: image.exposure,
         iso: image.iso,
+        focalLength: image.focalLength,
         family: ebirdInfo?.family || null,
         status: ebirdInfo?.status || wikidata.species?.[bird.name]?.conservationStatus || null,
         locationLabel: location?.label || null,
@@ -2171,6 +2249,10 @@ async function build() {
       lens: image.lens,
       captureDate: image.captureDate,
       captureDateIso: image.captureDateIso,
+      aperture: image.aperture,
+      exposure: image.exposure,
+      iso: image.iso,
+      focalLength: image.focalLength,
       width: Number.isFinite(image.width) ? image.width : null,
       height: Number.isFinite(image.height) ? image.height : null
     }));

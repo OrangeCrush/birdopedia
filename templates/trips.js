@@ -1,17 +1,13 @@
 (() => {
   const dataNode = document.getElementById('trip-data');
   const preview = document.querySelector('[data-preview]');
-  const previewImage = preview ? preview.querySelector('.preview-modal__image') : null;
-  const closeButton = preview ? preview.querySelector('[data-preview-close]') : null;
-  const prevButton = preview ? preview.querySelector('[data-preview-dir="prev"]') : null;
-  const nextButton = preview ? preview.querySelector('[data-preview-dir="next"]') : null;
-  const birdLabel = preview ? preview.querySelector('[data-preview-bird]') : null;
-  const dateLabel = preview ? preview.querySelector('[data-preview-date]') : null;
-  const speciesLink = preview ? preview.querySelector('[data-preview-link]') : null;
+  const previewController = window.Birdopedia?.createPreviewController
+    ? window.Birdopedia.createPreviewController({ preview })
+    : null;
   const stage = document.querySelector('.trips-stage');
   const nav = document.querySelector('[data-trip-nav]');
 
-  if (!dataNode || !preview || !previewImage || !stage) {
+  if (!dataNode || !preview || !previewController || !stage) {
     return;
   }
 
@@ -57,27 +53,30 @@
 
   const currentTrip = () => (state.tripId ? tripsById.get(state.tripId) || null : null);
 
-  const updatePreview = () => {
+  const getPreviewItem = () => {
     const trip = currentTrip();
     if (!trip || !Array.isArray(trip.images) || !trip.images.length) {
-      return;
+      return null;
     }
     const normalized = ((state.imageIndex % trip.images.length) + trip.images.length) % trip.images.length;
     state.imageIndex = normalized;
     const image = trip.images[normalized];
-    previewImage.src = `/${image.src}`;
-    previewImage.alt = image.bird ? `${image.bird} trip image` : 'Trip image';
-    if (birdLabel) {
-      birdLabel.textContent = image.bird || 'Unknown species';
+    if (!image?.src) {
+      return null;
     }
-    if (dateLabel) {
-      dateLabel.textContent = image.captureDate || 'Unknown date';
-    }
-    if (speciesLink) {
-      speciesLink.href = image.filename
-        ? `${image.speciesHref}?image=${encodeURIComponent(image.filename)}`
-        : image.speciesHref || '#';
-    }
+    return {
+      src: `/${image.src}`,
+      alt: image.bird ? `${image.bird} trip image` : 'Trip image',
+      meta: {
+        aperture: image.aperture || '',
+        shutter: image.exposure || '',
+        iso: image.iso || '',
+        focal: image.focalLength || '',
+        captureDate: image.captureDate || '',
+        camera: image.camera || '',
+        lens: image.lens || ''
+      }
+    };
   };
 
   const openPreview = (tripId, imageIndex) => {
@@ -87,33 +86,17 @@
     }
     state.tripId = tripId;
     state.imageIndex = Number.isInteger(imageIndex) ? imageIndex : 0;
-    updatePreview();
-    preview.classList.add('is-active');
-    preview.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('preview-open');
-    const hideNav = trip.images.length <= 1;
-    if (prevButton && nextButton) {
-      prevButton.toggleAttribute('hidden', hideNav);
-      nextButton.toggleAttribute('hidden', hideNav);
-    }
-  };
-
-  const closePreview = () => {
-    preview.classList.remove('is-active');
-    preview.setAttribute('aria-hidden', 'true');
-    previewImage.removeAttribute('src');
-    document.body.classList.remove('preview-open');
-    state.tripId = null;
-    state.imageIndex = -1;
-  };
-
-  const step = (direction) => {
-    const trip = currentTrip();
-    if (!trip || trip.images.length <= 1) {
-      return;
-    }
-    state.imageIndex += direction === 'next' ? 1 : -1;
-    updatePreview();
+    previewController.open({
+      count: trip.images.length,
+      getItem: getPreviewItem,
+      step: (direction) => {
+        state.imageIndex += direction === 'next' ? 1 : -1;
+      },
+      onClose: () => {
+        state.tripId = null;
+        state.imageIndex = -1;
+      }
+    });
   };
 
   const setActiveTrip = (tripId) => {
@@ -187,43 +170,6 @@
       setActiveTrip(tripId);
     });
   }
-
-  if (preview) {
-    preview.addEventListener('click', (event) => {
-      if (event.target === preview || event.target === closeButton) {
-        closePreview();
-      }
-    });
-  }
-
-  if (closeButton) {
-    closeButton.addEventListener('click', closePreview);
-  }
-  if (prevButton) {
-    prevButton.addEventListener('click', () => step('prev'));
-  }
-  if (nextButton) {
-    nextButton.addEventListener('click', () => step('next'));
-  }
-
-  document.addEventListener('keydown', (event) => {
-    if (!preview.classList.contains('is-active')) {
-      return;
-    }
-    if (event.key === 'Escape') {
-      closePreview();
-      return;
-    }
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      step('prev');
-      return;
-    }
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      step('next');
-    }
-  });
 
   applyImageLoadingEffects();
 })();

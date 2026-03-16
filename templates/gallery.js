@@ -5,10 +5,9 @@
   const cameraSelect = document.getElementById('gallery-camera');
   const lensSelect = document.getElementById('gallery-lens');
   const preview = document.querySelector('[data-preview]');
-  const previewImage = preview ? preview.querySelector('.preview-modal__image') : null;
-  const closeButton = preview ? preview.querySelector('[data-preview-close]') : null;
-  const previewPrev = preview ? preview.querySelector('[data-preview-dir="prev"]') : null;
-  const previewNext = preview ? preview.querySelector('[data-preview-dir="next"]') : null;
+  const previewController = window.Birdopedia?.createPreviewController
+    ? window.Birdopedia.createPreviewController({ preview })
+    : null;
   if (!grid) {
     return;
   }
@@ -41,52 +40,58 @@
   const batchSize = 24;
   let previewIndex = -1;
 
-  const setPreviewImageByIndex = (index) => {
-    if (!previewImage || !sortedItems.length) {
-      return;
+  const setPreviewIndex = (index) => {
+    if (!sortedItems.length) {
+      return null;
     }
     const normalized = ((index % sortedItems.length) + sortedItems.length) % sortedItems.length;
     const item = sortedItems[normalized];
     if (!item?.src) {
-      return;
+      return null;
     }
     previewIndex = normalized;
-    previewImage.src = `/${item.src}`;
-    previewImage.alt = `${item.bird || 'Bird'} photograph`;
+    return item;
+  };
+
+  const getPreviewItem = () => {
+    const item = sortedItems[previewIndex];
+    if (!item?.src) {
+      return null;
+    }
+    return {
+      src: `/${item.src}`,
+      alt: `${item.bird || 'Bird'} photograph`,
+      meta: {
+        aperture: item.aperture || '',
+        shutter: item.exposure || '',
+        iso: item.iso || '',
+        focal: item.focalLength || '',
+        captureDate: item.captureDate || '',
+        camera: item.camera || '',
+        lens: item.lens || ''
+      }
+    };
   };
 
   const openPreview = (index) => {
-    if (!preview || !previewImage || !sortedItems.length) {
+    if (!previewController || !sortedItems.length) {
       return;
     }
-    setPreviewImageByIndex(index);
-    preview.classList.add('is-active');
-    preview.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('preview-open');
-    if (previewPrev && previewNext) {
-      const hideNav = sortedItems.length <= 1;
-      previewPrev.toggleAttribute('hidden', hideNav);
-      previewNext.toggleAttribute('hidden', hideNav);
-    }
-  };
-
-  const closePreview = () => {
-    if (!preview || !previewImage) {
+    const item = setPreviewIndex(index);
+    if (!item) {
       return;
     }
-    preview.classList.remove('is-active');
-    preview.setAttribute('aria-hidden', 'true');
-    previewImage.removeAttribute('src');
-    document.body.classList.remove('preview-open');
-    previewIndex = -1;
-  };
-
-  const stepPreview = (dir) => {
-    if (previewIndex < 0 || sortedItems.length <= 1) {
-      return;
-    }
-    const nextIndex = dir === 'next' ? previewIndex + 1 : previewIndex - 1;
-    setPreviewImageByIndex(nextIndex);
+    previewController.open({
+      count: sortedItems.length,
+      getItem: getPreviewItem,
+      step: (dir) => {
+        const nextIndex = dir === 'next' ? previewIndex + 1 : previewIndex - 1;
+        setPreviewIndex(nextIndex);
+      },
+      onClose: () => {
+        previewIndex = -1;
+      }
+    });
   };
 
   const renderBatch = () => {
@@ -183,52 +188,9 @@
     if (loadButton) {
       loadButton.hidden = false;
     }
-    if (previewPrev && previewNext) {
-      const hideNav = sortedItems.length <= 1;
-      previewPrev.toggleAttribute('hidden', hideNav);
-      previewNext.toggleAttribute('hidden', hideNav);
-    }
+    previewController?.refresh();
     renderBatch();
   };
-
-  if (preview) {
-    preview.addEventListener('click', (event) => {
-      if (event.target === preview || event.target === closeButton) {
-        closePreview();
-      }
-    });
-  }
-
-  if (closeButton) {
-    closeButton.addEventListener('click', closePreview);
-  }
-
-  if (previewPrev) {
-    previewPrev.addEventListener('click', () => stepPreview('prev'));
-  }
-
-  if (previewNext) {
-    previewNext.addEventListener('click', () => stepPreview('next'));
-  }
-
-  document.addEventListener('keydown', (event) => {
-    if (!preview?.classList.contains('is-active')) {
-      return;
-    }
-    if (event.key === 'Escape') {
-      closePreview();
-      return;
-    }
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      stepPreview('prev');
-      return;
-    }
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      stepPreview('next');
-    }
-  });
 
   grid.addEventListener('click', (event) => {
     const target = event.target;
