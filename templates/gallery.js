@@ -4,6 +4,7 @@
   const sortSelect = document.getElementById('gallery-sort');
   const cameraSelect = document.getElementById('gallery-camera');
   const lensSelect = document.getElementById('gallery-lens');
+  const seasonSelect = document.getElementById('gallery-season');
   const preview = document.querySelector('[data-preview]');
   const previewController = window.Birdopedia?.createPreviewController
     ? window.Birdopedia.createPreviewController({ preview })
@@ -173,10 +174,30 @@
   const applyFilters = (list) => {
     const camera = cameraSelect ? cameraSelect.value : '';
     const lens = lensSelect ? lensSelect.value : '';
+    const season = seasonSelect ? seasonSelect.value : '';
+    const monthToSeason = (month) => {
+      if ([11, 0, 1].includes(month)) {
+        return 'winter';
+      }
+      if ([2, 3, 4].includes(month)) {
+        return 'spring';
+      }
+      if ([5, 6, 7].includes(month)) {
+        return 'summer';
+      }
+      if ([8, 9, 10].includes(month)) {
+        return 'fall';
+      }
+      return '';
+    };
     return list.filter((item) => {
       const cameraMatch = !camera || item.camera === camera;
       const lensMatch = !lens || item.lens === lens;
-      return cameraMatch && lensMatch;
+      const captureDate = item.captureDateIso ? new Date(item.captureDateIso) : null;
+      const itemSeason =
+        captureDate && !Number.isNaN(captureDate.getTime()) ? monthToSeason(captureDate.getMonth()) : '';
+      const seasonMatch = !season || itemSeason === season;
+      return cameraMatch && lensMatch && seasonMatch;
     });
   };
 
@@ -234,6 +255,12 @@
       }
       if (lensSelect) {
         lensSelect.addEventListener('change', () => {
+          const value = sortSelect ? sortSelect.value : 'random';
+          resetGallery(value || 'random');
+        });
+      }
+      if (seasonSelect) {
+        seasonSelect.addEventListener('change', () => {
           const value = sortSelect ? sortSelect.value : 'random';
           resetGallery(value || 'random');
         });

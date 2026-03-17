@@ -1675,6 +1675,16 @@ function renderGalleryPage(
             ${lensOptions}
           </select>
         </label>
+        <label class="sort-field" for="gallery-season">
+          <span>Season</span>
+          <select id="gallery-season">
+            <option value="">All seasons</option>
+            <option value="winter">Winter</option>
+            <option value="spring">Spring</option>
+            <option value="summer">Summer</option>
+            <option value="fall">Fall</option>
+          </select>
+        </label>
       </div>
       <div class="gallery-grid" data-gallery-grid></div>
       <button class="gallery-load" type="button" data-gallery-load>Load more</button>
