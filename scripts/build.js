@@ -609,7 +609,7 @@ function createTripsFromMapPoints(
       const cover = images[coverIndex];
 
       trips.push({
-        id: `${dayKey}-${String(trips.length + 1).padStart(2, '0')}`,
+        id: buildTripSlug(dayKey, locationTitle, centroid),
         dayKey,
         locationTitle,
         dateLabel,
@@ -642,7 +642,7 @@ function createTripsFromMapPoints(
     return b.imageCount - a.imageCount;
   });
 
-  return trips.map((trip, index) => ({ ...trip, id: `trip-${index + 1}` }));
+  return trips;
 }
 
 function buildBandingCode(name) {
@@ -669,6 +669,32 @@ function buildBandingCode(name) {
     return `${words[0][0]}${words[1][0]}${words[2].slice(0, 2)}`.toUpperCase();
   }
   return `${words[0][0]}${words[1][0]}${words[2][0]}${words[3][0]}`.toUpperCase();
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
+function formatTripSlugCoord(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return String(Math.round(numeric * 1000))
+    .replace(/^-/, 'm')
+    .replace(/\D/g, '');
+}
+
+function buildTripSlug(dayKey, locationTitle, centroid = {}) {
+  const datePart = slugify(dayKey) || 'undated';
+  const locationPart = slugify(locationTitle) || 'unknown-location';
+  const latPart = formatTripSlugCoord(centroid.lat, 'lat');
+  const lonPart = formatTripSlugCoord(centroid.lon, 'lon');
+  return `${datePart}-${locationPart}-${latPart}-${lonPart}`;
 }
 
 function formatMassDisplay(value) {
@@ -1301,6 +1327,13 @@ function renderBirdPage(bird, ebirdInfo) {
               alt="${bird.name} photograph ${index + 1}"
               loading="lazy"
               decoding="async"
+              data-caption-date="${image.captureDateIso || ''}"
+              data-caption-camera="${escapeAttr(image.camera)}"
+              data-caption-lens="${escapeAttr(image.lens)}"
+              data-aperture="${escapeAttr(image.aperture)}"
+              data-shutter="${escapeAttr(image.exposure)}"
+              data-iso="${escapeAttr(image.iso)}"
+              data-focal="${escapeAttr(image.focalLength)}"
             />
             <span class="zoom-indicator" aria-hidden="true"></span>
           </div>
