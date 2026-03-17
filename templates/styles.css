@@ -757,6 +757,22 @@ a {
   border-radius: 18px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   background: #0c0a07;
+  cursor: zoom-in;
+  transform-origin: center center;
+  transition: transform 0.12s ease;
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+  will-change: transform;
+}
+
+.preview-modal.is-zoomed .preview-modal__image {
+  cursor: grab;
+}
+
+.preview-modal.is-zoomed .preview-modal__image.is-dragging {
+  cursor: grabbing;
+  transition: none;
 }
 
 .preview-modal__info {
