@@ -1743,7 +1743,7 @@ function renderTripsPage(trips = []) {
             data-trip-id="${trip.id}"
             data-image-index="${trip.coverIndex}"
           >
-            <img class="media-image media-fade" src="/${trip.cover.src || trip.cover.thumbSrc}" alt="${escapeAttr(trip.cover.bird)} trip cover" loading="lazy" decoding="async" />
+            <img class="media-image media-fade" src="/${trip.cover.src || trip.cover.thumbSrc}" alt="${escapeAttr(trip.cover.bird)} trip cover" loading="lazy" decoding="async" data-trip-hero-image />
             <span class="zoom-indicator" aria-hidden="true"></span>
             <span class="trip-card__badge">${trip.dateLabel}</span>
           </button>
@@ -1797,6 +1797,7 @@ function renderTripsPage(trips = []) {
     id: trip.id,
     images: trip.images.map((image) => ({
       src: image.src,
+      thumbSrc: image.thumbSrc,
       bird: image.bird,
       captureDate: image.captureDate,
       camera: image.camera,
